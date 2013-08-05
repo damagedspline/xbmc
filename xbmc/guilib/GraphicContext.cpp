@@ -1065,6 +1065,16 @@ void CGraphicContext::Flip(const CDirtyRegionList& dirty)
 
   if(m_stereoMode != m_nextStereoMode)
   {
+    //pause the player during the stereo mode change
+    int delay = CSettings::GetInstance().GetInt("videoplayer.pauseduringstereochange");
+    if (delay > 0 && g_application.m_pPlayer->IsPlayingVideo() && !g_application.m_pPlayer->IsPausedPlayback())
+    {
+      g_application.m_pPlayer->Pause();
+      ThreadMessage msg {TMSG_MEDIA_UNPAUSE};
+      CDelayedMessage* pauseMessage = new CDelayedMessage(msg, delay * 1000);
+      pauseMessage->Create(true);
+    }
+
     m_stereoMode = m_nextStereoMode;
     SetVideoResolution(GetVideoResolution(), true);
     g_windowManager.SendMessage(GUI_MSG_NOTIFY_ALL, 0, 0, GUI_MSG_RENDERER_RESET);
