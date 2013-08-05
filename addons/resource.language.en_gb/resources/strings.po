@@ -16244,7 +16244,17 @@ msgctxt "#36549"
 msgid "Use iOS8 compatible AirPlay support. If you have trouble with older iOS devices detecting this application as a valid target try switching this off. This option requires a restart to take effect!"
 msgstr ""
 
-#empty strings from id 36550 to 36599
+#: system/settings/settings.xml
+msgctxt "#36550"
+msgid "Pause playback during the sterescopic mode change"
+msgstr ""
+
+#: system/settings/settings.xml
+msgctxt "#36551"
+msgid "Pause for a small amount of time during a sterescopic mode change. This potentially allows don't skip frames during a sterescopic mode change."
+msgstr ""
+
+#empty strings from id 36552 to 36999
 #reserved strings 365XX
 
 #. Description of settings category "Music -> Library" with label #14022
