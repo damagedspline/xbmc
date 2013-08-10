@@ -66,8 +66,14 @@ public:
 
 protected:
   bool PreInit(void);
+  void Add3DSignature(void);
 
-  bool                            m_restoreFFScreen;
+  bool                    m_restoreFFScreen;
+  unsigned int            m_uiScreenWidth;
+  unsigned int            m_uiScreenHeight;
+
+  IDirect3DDevice9Ex*     m_pD3DDevice;         // D3D device
+  IDirect3DSurface9*      m_pRenderSurface;     // The surface for L+R results
 };
 
 #endif // HAS_DX

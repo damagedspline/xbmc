@@ -354,12 +354,16 @@ bool CIntelS3DDevice::SelectRightView()
 // Activates right view, requires device to be set
 bool CIntelS3DDevice::PresentFrame()
 {
+  if (m_pRenderSurface == NULL)
+    return false;
+
   // channel R completed render it and back true render traget
   if(FAILED(m_pProcessRight->VideoProcessBlt(m_pRenderSurface, &m_BltParams, &m_Sample, 1, NULL)))
     return false;
 
   HRESULT hr = m_pD3DDevice->SetRenderTarget(0, m_pRenderSurface);
   m_pRenderSurface->Release();
+  m_pRenderSurface = NULL;
 
   return !FAILED(hr);
 }

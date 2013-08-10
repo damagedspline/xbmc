@@ -30,8 +30,38 @@
 #include "guilib/GUIWindowManager.h"
 #include "settings/Settings.h"
 
+#define CHECK(a) \
+do { \
+  HRESULT res = a; \
+  if(FAILED(res)) \
+  { \
+    CLog::Log(LOGERROR, __FUNCTION__" - failed executing "#a" at line %d with error %x", __LINE__, res); \
+    return false; \
+  } \
+} while(0);
+
+#define NVSTEREO_IMAGE_SIGNATURE 0x4433564E //NV3D
+
+// ORedflags in the dwFlagsfielsof the _Nv_Stereo_Image_Headerstructure above
+#define SIH_SWAP_EYES 0x00000001
+#define SIH_SCALE_TO_FIT 0x00000002
+
+typedef struct _NVSTEREOIMAGEHEADER
+{
+  unsigned int dwSignature;
+  unsigned int dwWidth;
+  unsigned int dwHeight;
+  unsigned int dwBPP;
+  unsigned int dwFlags;
+
+} NVSTEREOIMAGEHEADER, *LPNVSTEREOIMAGEHEADER;
+
+
 CNvidiaS3DDevice::CNvidiaS3DDevice(IDirect3D9Ex* pD3D) : IS3DDevice(pD3D),
-    m_restoreFFScreen(false)
+    m_restoreFFScreen(false),
+    m_uiScreenWidth(0),
+    m_uiScreenHeight(0),
+    m_pRenderSurface(NULL)
 {
     m_supported = PreInit();
 }
@@ -39,34 +69,57 @@ CNvidiaS3DDevice::CNvidiaS3DDevice(IDirect3D9Ex* pD3D) : IS3DDevice(pD3D),
 CNvidiaS3DDevice::~CNvidiaS3DDevice() 
 {
   UnInit();
+  SAFE_RELEASE(m_pD3DDevice);
 }
 
 void CNvidiaS3DDevice::UnInit(void) 
 {
+  SAFE_RELEASE(m_pRenderSurface);
   m_initialized  = false;
 }
 
 // 
 bool CNvidiaS3DDevice::CorrectPresentParams(D3DPRESENT_PARAMETERS *pD3DPP, bool stereo)
 {
-  return false;
+  if (stereo)
+  {
+    // NOTE 3D Vision can be in full screen only
+    pD3DPP->Windowed = false;
+  }
+
+  return true;
 }
 
 // Returns true if S3D is supported by the platform and exposes supported display modes 
 bool CNvidiaS3DDevice::GetS3DCaps(S3D_CAPS *pCaps)
 {
-  return false;
+  return true;
 }
 
 // 
 bool CNvidiaS3DDevice::PreInit()
 {
-  return false;
+  // TODO check 3D VISION is present
+  return true;
 }
 
 bool CNvidiaS3DDevice::OnDeviceCreated(IDirect3DDevice9Ex* pD3DDevice)
 {
-  return false;
+  D3DDISPLAYMODE d3dmodeTemp;
+  pD3DDevice->GetDisplayMode(0, &d3dmodeTemp);
+
+  m_uiScreenWidth = d3dmodeTemp.Width;
+  m_uiScreenHeight = d3dmodeTemp.Height;
+
+  // 3D VISION uses a single surface 2x images wide and image high
+  CHECK(pD3DDevice->CreateRenderTarget(m_uiScreenWidth*2, m_uiScreenHeight, 
+                                       D3DFMT_X8R8G8B8, D3DMULTISAMPLE_NONE, 0, TRUE, &m_pRenderSurface, NULL));
+
+  m_pD3DDevice = pD3DDevice;
+  pD3DDevice->AddRef();
+
+  m_initialized = true;
+  return true;
 }
 
 // Switch the monitor to 3D mode
@@ -80,7 +133,9 @@ bool CNvidiaS3DDevice::SwitchTo3D(S3D_DISPLAY_MODE *pMode)
     m_restoreFFScreen = true;
   }
 
-  return false;
+  // do nothing, auto switch to 3d with first signed frame
+
+  return true;
 }
 
 // Switch the monitor back to 2D mode
@@ -94,25 +149,110 @@ bool CNvidiaS3DDevice::SwitchTo2D(S3D_DISPLAY_MODE *pMode)
     CSettings::Get().SetBool("videoscreen.fakefullscreen", true);
   }
 
-  return false;
+  // do nothing, auto switch to 2d with first unsigned frame
+
+  return true;
 }
     
 // Activate left view, requires device to be set
 bool CNvidiaS3DDevice::SelectLeftView()
 {
-  return false;
+  return true;
 }
 
 // Activates right view, requires device to be set
 bool CNvidiaS3DDevice::SelectRightView()
 {
-  return false;
+  IDirect3DSurface9* pTarget;
+  CHECK(m_pD3DDevice->GetRenderTarget(0, &pTarget));
+
+  // copy left channel to result
+  RECT dstRect = {0, 0, m_uiScreenWidth, m_uiScreenHeight};
+  HRESULT hr = m_pD3DDevice->StretchRect(pTarget, NULL, m_pRenderSurface, &dstRect, D3DTEXF_NONE);
+
+  if (FAILED(hr))
+  {
+    pTarget->Release();
+    CLog::Log(LOGERROR, __FUNCTION__" - failed executing IDirect3DDevice9::StretchRect method with error %x", hr);
+    return false;
+  }
+
+  pTarget->Release();
+  return true;
 }
 
 // Activates right view, requires device to be set
 bool CNvidiaS3DDevice::PresentFrame()
 {
-  return false;
+  HRESULT hr;
+
+  IDirect3DSurface9* pTarget;
+  CHECK(m_pD3DDevice->GetRenderTarget(0, &pTarget));
+
+  // copy right channel to result
+  RECT dstRect = {m_uiScreenWidth, 0, m_uiScreenWidth*2, m_uiScreenHeight};
+  hr = m_pD3DDevice->StretchRect(pTarget, NULL, m_pRenderSurface, &dstRect, D3DTEXF_NONE);
+
+  if (FAILED(hr))
+  {
+    pTarget->Release();
+    CLog::Log(LOGERROR, __FUNCTION__" - failed executing IDirect3DDevice9::StretchRect method with error %x", hr);
+    return false;
+  }
+
+  Add3DSignature();
+
+  // stretch result to render target
+  // with 3d signature drivers show this surface in stereo mode.
+  hr = m_pD3DDevice->StretchRect(m_pRenderSurface, NULL, pTarget, NULL, D3DTEXF_NONE);
+  
+  if (FAILED(hr))
+  {
+    pTarget->Release();
+    CLog::Log(LOGERROR, __FUNCTION__" - failed executing IDirect3DDevice9::StretchRect method with error %x", hr);
+    return false;
+  }
+
+  pTarget->Release();
+  return true;
+}
+
+// put 3d signature in image in the last row of the stereo surface
+void CNvidiaS3DDevice::Add3DSignature()
+{
+  HRESULT hr;
+
+  // Lock the stereo surface
+  D3DLOCKED_RECT lock;
+  hr = m_pRenderSurface->LockRect(&lock, NULL, 0);
+  if(FAILED(hr))
+  {
+    CLog::Log(LOGERROR, __FUNCTION__" - failed executing IDirect3DSurface9::LockRect method with error %x", hr);
+    return;
+  }
+
+  try {
+    // write stereo signature in the last raw of the stereo surface
+    LPNVSTEREOIMAGEHEADER pSIH = (LPNVSTEREOIMAGEHEADER)(((unsigned char *) lock.pBits) + (lock.Pitch * (m_uiScreenHeight-1)));
+
+    // Update the signature header values
+    pSIH->dwSignature = NVSTEREO_IMAGE_SIGNATURE;
+    pSIH->dwBPP = 32;
+    pSIH->dwFlags = SIH_SCALE_TO_FIT /*| SIH_SWAP_EYES*/; // Src image has left on left and right on right, thats why this flag is not needed.
+    pSIH->dwWidth = m_uiScreenWidth * 2;
+    pSIH->dwHeight = m_uiScreenHeight;
+  }
+  catch (...)
+  {
+    // on some systems it may fails with access violation
+    // don't spam this
+    //CLog::Log(LOGERROR, __FUNCTION__" - signing stereo image failed with access violation");
+  }
+
+  // unlock stereo surface
+  hr = m_pRenderSurface->UnlockRect();
+  if(FAILED(hr))
+    CLog::Log(LOGERROR, __FUNCTION__" - failed executing IDirect3DSurface9::UnlockRect with error %x", hr);
 }
 
 #endif // HAS_DX
