@@ -26,10 +26,13 @@
 #include <d3d9.h>
 #include <dxva2api.h>
 #include "IS3DDevice.h"
+#include "guilib/D3DResource.h"
+#include "win32/igfx_s3dcontrol/AtiDx9Stereo.h"
 
 class IS3DDevice;
+class IGFXS3DControl;
 
-class CAmdS3DDevice: public IS3DDevice
+class CAmdS3DDevice: public IS3DDevice, public ID3DResource
 {
 public:
   CAmdS3DDevice(IDirect3D9Ex* pD3D);
@@ -41,9 +44,6 @@ public:
   // Returns true if S3D is supported by the platform and exposes supported display modes 
   // !! m.b. not needed
   bool GetS3DCaps(S3D_CAPS *pCaps);
-
-  // create devices for stereoscopic rendering
-  bool OnDeviceCreated(IDirect3DDevice9Ex* pD3DDevice);
 
   // Switch the monitor to 3D mode
   // Call with NULL to use current display mode
@@ -59,15 +59,39 @@ public:
   // Activates right view, requires device to be set
   bool SelectRightView(void);
 
-  // 
   bool PresentFrame(void);
 
   void UnInit(void);
 
-protected:
-  bool PreInit(void);
+  void OnCreateDevice();
+  void OnDestroyDevice();
+  void OnLostDevice();
+  void OnResetDevice();
 
-  bool                            m_restoreFFScreen;
+protected:
+  bool    PreInit(void);
+  bool    SendStereoCommand(ATIDX9STEREOCOMMAND stereoCommand, BYTE *pOutBuffer, 
+                            DWORD dwOutBufferSize, BYTE *pInBuffer, DWORD dwInBufferSize);
+
+  HRESULT CreateCommSurface();
+  void    ReleaseCommSurface();
+  bool    CreateResources();
+
+  bool                      m_restoreFFScreen;
+  bool                      m_enableStereo;
+  int                       m_backBufferWidth;
+  int                       m_backBufferHeight;
+  DWORD                     m_lineOffset;
+
+  IDirect3DDevice9*         m_pD3DDevice;
+  IDirect3DSurface9*        m_pBackBufferSurface;
+  IDirect3DSurface9*        m_pBackBufferDepthStencil;
+  IDirect3DSurface9*        m_pDriverComSurface;
+  IDirect3DSurface9*        m_pRightEyeRT;
+  IDirect3DSurface9*        m_pLeftEyeRT;
+  IDirect3DSurface9*        m_pRightEyeDS;
+  IDirect3DSurface9*        m_pLeftEyeDS;
+  D3DFORMAT                 m_zFormat;
 };
 
 #endif // HAS_DX
