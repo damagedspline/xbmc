@@ -345,7 +345,11 @@ void CGraphicContext::SetFullScreenVideo(bool bOnOff)
 #if defined(HAS_VIDEO_PLAYBACK)
   if(m_bFullScreenRoot)
   {
-    bool allowDesktopRes = CSettings::Get().GetInt("videoplayer.adjustrefreshrate") == ADJUST_REFRESHRATE_ALWAYS;
+    bool allowDesktopRes = CSettings::Get().GetInt("videoplayer.adjustrefreshrate") == ADJUST_REFRESHRATE_ALWAYS
+#if defined(TARGET_WINDOWS)
+                           && m_stereoMode != RENDER_STEREO_MODE_HARDWAREBASED
+#endif
+    ;
     if(m_bFullScreenVideo || (!allowDesktopRes && g_application.m_pPlayer->IsPlayingVideo()))
       SetVideoResolution(g_renderManager.GetResolution());
     else if(CDisplaySettings::Get().GetCurrentResolution() > RES_DESKTOP)
@@ -423,7 +427,11 @@ void CGraphicContext::SetVideoResolutionInternal(RESOLUTION res, bool forceUpdat
   {
     //pause the player during the refreshrate change
     int delay = CSettings::Get().GetInt("videoplayer.pauseafterrefreshchange");
-    if (delay > 0 && CSettings::Get().GetInt("videoplayer.adjustrefreshrate") != ADJUST_REFRESHRATE_OFF && g_application.m_pPlayer->IsPlayingVideo() && !g_application.m_pPlayer->IsPausedPlayback())
+    if (delay > 0 && CSettings::Get().GetInt("videoplayer.adjustrefreshrate") != ADJUST_REFRESHRATE_OFF && g_application.m_pPlayer->IsPlayingVideo() && !g_application.m_pPlayer->IsPausedPlayback()
+#if defined(TARGET_WINDOWS)
+         && m_stereoMode != RENDER_STEREO_MODE_HARDWAREBASED
+#endif
+       )
     {
       g_application.m_pPlayer->Pause();
       ThreadMessage msg = {TMSG_MEDIA_UNPAUSE};

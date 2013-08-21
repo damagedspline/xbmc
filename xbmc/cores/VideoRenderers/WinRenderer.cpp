@@ -248,7 +248,11 @@ bool CWinRenderer::Configure(unsigned int width, unsigned int height, unsigned i
 
   // calculate the input frame aspect ratio
   CalculateFrameAspectRatio(d_width, d_height);
-  ChooseBestResolution(fps);
+  // for hw based mode resolution and fps already set, on some systems this break stereo mode back to mono
+  if (g_graphicsContext.GetStereoMode() != RENDER_STEREO_MODE_HARDWAREBASED)
+  {
+    ChooseBestResolution(fps);
+  }
   m_destWidth = g_graphicsContext.GetResInfo(m_resolution).iWidth;
   m_destHeight = g_graphicsContext.GetResInfo(m_resolution).iHeight;
   SetViewMode(CMediaSettings::Get().GetCurrentVideoSettings().m_ViewMode);

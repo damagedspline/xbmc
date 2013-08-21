@@ -22,6 +22,7 @@
 #include "WinEventsWin32.h"
 #include "resource.h"
 #include "guilib/gui3d.h"
+#include "guilib/GraphicContext.h"
 #include "settings/AdvancedSettings.h"
 #include "settings/DisplaySettings.h"
 #include "settings/Settings.h"
@@ -451,7 +452,8 @@ bool CWinSystemWin32::ChangeResolution(RESOLUTION_INFO res)
   // If we can't read the current resolution or any detail of the resolution is different than res
   if (!EnumDisplaySettingsW(details.DeviceNameW.c_str(), ENUM_CURRENT_SETTINGS, &sDevMode) ||
       sDevMode.dmPelsWidth != res.iWidth || sDevMode.dmPelsHeight != res.iHeight ||
-      sDevMode.dmDisplayFrequency != (int)res.fRefreshRate ||
+      (sDevMode.dmDisplayFrequency != (int)res.fRefreshRate 
+        && g_graphicsContext.GetStereoMode() != RENDER_STEREO_MODE_HARDWAREBASED )||
       ((sDevMode.dmDisplayFlags & DM_INTERLACED) && !(res.dwFlags & D3DPRESENTFLAG_INTERLACED)) ||
       (!(sDevMode.dmDisplayFlags & DM_INTERLACED) && (res.dwFlags & D3DPRESENTFLAG_INTERLACED)) )
   {
