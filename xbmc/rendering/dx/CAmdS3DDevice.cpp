@@ -47,7 +47,7 @@ void CAmdS3DDevice::UnInit(void)
 }
 
 // 
-bool CAmdS3DDevice::CorrectPresentParams(D3DPRESENT_PARAMETERS *pD3DPP, bool stereo)
+bool CAmdS3DDevice::CorrectPresentParams(D3DPRESENT_PARAMETERS *pD3DPP)
 {
   return false;
 }

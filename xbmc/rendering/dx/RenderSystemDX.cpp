@@ -302,10 +302,9 @@ void CRenderSystemDX::BuildPresentParameters()
 
   if (m_useD3D9Ex)
   {
-    if (m_stereoMode == RENDER_STEREO_MODE_HARDWAREBASED
-        && m_pS3DDevice != NULL && m_pS3DDevice->IsSupported())
+    if (m_pS3DDevice->IsSupported())
     {
-      m_pS3DDevice->CorrectPresentParams(&m_D3DPP, true);
+      m_pS3DDevice->CorrectPresentParams(&m_D3DPP);
     }
 
     ZeroMemory( &m_D3DDMEX, sizeof(D3DDISPLAYMODEEX) );
@@ -346,9 +345,6 @@ void CRenderSystemDX::DeleteDevice()
 
   SAFE_RELEASE(m_pD3DDevice);
   m_bRenderCreated = false;
-
-  if (m_pS3DDevice != NULL && m_pS3DDevice->IsInitialized())
-    m_pS3DDevice->UnInit();
 }
 
 void CRenderSystemDX::OnDeviceLost()
@@ -440,10 +436,6 @@ bool CRenderSystemDX::CreateDevice()
 
   if (m_useD3D9Ex)
   {
-    // needed??
-    //if(m_stereoMode == RENDER_STEREO_MODE_HARDWAREBASED && !m_pS3DDevice->IsInitialized() && m_pS3DDevice->IsSupported())
-    //  m_pS3DDevice->SwitchTo3D(NULL);
-
     hr = ((IDirect3D9Ex*)m_pD3D)->CreateDeviceEx(m_adapter, m_devType, m_hFocusWnd,
       VertexProcessingFlags | D3DCREATE_MULTITHREADED, &m_D3DPP, m_D3DPP.Windowed ? NULL : &m_D3DDMEX, (IDirect3DDevice9Ex**)&m_pD3DDevice );
     if (FAILED(hr))
@@ -463,9 +455,6 @@ bool CRenderSystemDX::CreateDevice()
     }
     // Not sure the following actually does something
     ((IDirect3DDevice9Ex*)m_pD3DDevice)->SetGPUThreadPriority(7);
-
-    if (m_stereoMode == RENDER_STEREO_MODE_HARDWAREBASED)
-      m_pS3DDevice->OnDeviceCreated((IDirect3DDevice9Ex*)m_pD3DDevice);
   }
   else
   {
@@ -601,6 +590,9 @@ bool CRenderSystemDX::PresentRenderImpl(const CDirtyRegionList &dirty)
 
   if(m_nDeviceStatus != S_OK)
     return false;
+
+  if (m_stereoMode == RENDER_STEREO_MODE_HARDWAREBASED)
+    m_pS3DDevice->PresentFrame();
 
   //CVideoReferenceClock polls GetRasterStatus too,
   //polling it from two threads at the same time is bad
@@ -1071,17 +1063,14 @@ void CRenderSystemDX::SetStereoMode(RENDER_STEREO_MODE mode, RENDER_STEREO_VIEW 
   {
     if (prevMode != RENDER_STEREO_MODE_HARDWAREBASED)
     {
-      // switch to 3d and reset render system
-
       CSingleLock lock(g_graphicsContext);
 
-      m_pS3DDevice->SwitchTo3D(NULL);
-
-      // if switch first time then d3d device need to be created in 3d mode.
-      // after create d3d device in 3d it may be switching to 3d without recreate
-      m_needNewDevice = !m_pS3DDevice->IsInitialized();
-
-      ResetRenderSystem(m_nBackBufferWidth, m_nBackBufferHeight, m_bFullScreenDevice, m_refreshRate);
+      if (!m_pS3DDevice->SwitchTo3D(NULL))
+      {
+        // need new device
+        m_needNewDevice = true;
+        ResetRenderSystem(m_nBackBufferWidth, m_nBackBufferHeight, m_bFullScreenDevice, m_refreshRate);
+      }
     }
 
     if (prevView != m_stereoView)
@@ -1094,19 +1083,15 @@ void CRenderSystemDX::SetStereoMode(RENDER_STEREO_MODE mode, RENDER_STEREO_VIEW 
       {
         m_pS3DDevice->SelectRightView();
       }
-      else
-      {
-        m_pS3DDevice->PresentFrame();
-      }
     }
   }
   else if (prevMode == RENDER_STEREO_MODE_HARDWAREBASED)
   {
     CSingleLock lock(g_graphicsContext);
 
-    // switch back to 2d and reset render system
-    m_pS3DDevice->SwitchTo2D(NULL);
-    ResetRenderSystem(m_nBackBufferWidth, m_nBackBufferHeight, m_bFullScreenDevice, m_refreshRate);
+    // switch back to 2d
+    if (!m_pS3DDevice->SwitchTo2D(NULL))
+      ResetRenderSystem(m_nBackBufferWidth, m_nBackBufferHeight, m_bFullScreenDevice, m_refreshRate);
   }
 }
 

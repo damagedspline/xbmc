@@ -36,7 +36,7 @@ public:
  ~CAmdS3DDevice();
 
   // correct present params for correct stereo rendering some implementations need it
-  bool CorrectPresentParams(D3DPRESENT_PARAMETERS *pD3DPP, bool stereo);
+  bool CorrectPresentParams(D3DPRESENT_PARAMETERS *pD3DPP);
 
   // Returns true if S3D is supported by the platform and exposes supported display modes 
   // !! m.b. not needed

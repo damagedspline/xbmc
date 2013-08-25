@@ -59,13 +59,10 @@ public:
   ~IS3DDevice() { SAFE_RELEASE(m_pD3D); };
 
   // 
-  virtual bool CorrectPresentParams(D3DPRESENT_PARAMETERS *pD3DPP, bool stereo) { return false; }
+  virtual bool CorrectPresentParams(D3DPRESENT_PARAMETERS *pD3DPP) { return false; }
 
   // Returns true if S3D is supported by the platform and exposes supported display modes 
   virtual bool GetS3DCaps(S3D_CAPS *pCaps) { return false; }
-
-  // create devices for stereoscopic rendering
-  virtual bool OnDeviceCreated(IDirect3DDevice9Ex* pD3DDevice) { return false; }
 
   // Switch the monitor to 3D mode
   // Call with NULL to use current display mode

@@ -29,6 +29,7 @@
 #include "threads/SingleLock.h"
 #include "guilib/GUIWindowManager.h"
 #include "settings/Settings.h"
+#include "windowing/WindowingFactory.h"
 
 // Dynamic loading of intel_s3d method.
 typedef IGFXS3DControl* (__stdcall *CreateIGFXS3DControlExPtr)(void);
@@ -72,9 +73,11 @@ static bool LoadS3D()
   return true;
 }
 
-CIntelS3DDevice::CIntelS3DDevice(IDirect3D9Ex* pD3D) :IS3DDevice(pD3D),
+CIntelS3DDevice::CIntelS3DDevice(IDirect3D9Ex* pD3D) 
+    : IS3DDevice(pD3D),
     m_resetToken(0),
     m_restoreFFScreen(false),
+    m_inStereo(false),
     m_pS3DControl(NULL),
     m_pDeviceManager9(NULL),
     m_pProcessService(NULL),
@@ -82,20 +85,26 @@ CIntelS3DDevice::CIntelS3DDevice(IDirect3D9Ex* pD3D) :IS3DDevice(pD3D),
     m_pProcessRight(NULL),
     m_pRenderSurface(NULL)
 {
-    m_supported = PreInit();
+  m_supported = PreInit();
+
+  if (m_supported)
+    g_Windowing.Register(this);
 }
 
 CIntelS3DDevice::~CIntelS3DDevice() 
 {
+  if (m_supported)
+    g_Windowing.Unregister(this);
+
   UnInit();
 
-  SAFE_RELEASE(m_pRenderSurface);
   SAFE_RELEASE(m_pDeviceManager9);
   SAFE_DELETE(m_pS3DControl);
 }
 
 void CIntelS3DDevice::UnInit(void) 
 {
+  SAFE_RELEASE(m_pRenderSurface);
   SAFE_RELEASE(m_Sample.SrcSurface);
   SAFE_RELEASE(m_pProcessService);
   SAFE_RELEASE(m_pProcessRight);
@@ -105,9 +114,9 @@ void CIntelS3DDevice::UnInit(void)
 }
 
 // 
-bool CIntelS3DDevice::CorrectPresentParams(D3DPRESENT_PARAMETERS *pD3DPP, bool stereo)
+bool CIntelS3DDevice::CorrectPresentParams(D3DPRESENT_PARAMETERS *pD3DPP)
 {
-  if (stereo)
+  if (m_inStereo)
   {
     // NOTE overlay may be used only in windowed mode
     pD3DPP->Windowed = true;
@@ -208,8 +217,27 @@ bool CIntelS3DDevice::PreInit()
   return true;
 }
 
-bool CIntelS3DDevice::OnDeviceCreated(IDirect3DDevice9Ex* pD3DDevice)
+void CIntelS3DDevice::OnDestroyDevice()
 {
+  UnInit();
+}
+
+void CIntelS3DDevice::OnLostDevice()
+{
+  UnInit();
+}
+
+void CIntelS3DDevice::OnResetDevice()
+{
+}
+
+void CIntelS3DDevice::OnCreateDevice()
+{
+  if (!m_inStereo)
+    return;
+
+  IDirect3DDevice9Ex* pD3DDevice = (IDirect3DDevice9Ex*)g_Windowing.Get3DDevice();
+
   D3DDISPLAYMODE d3dmodeTemp;
   pD3DDevice->GetDisplayMode(0, &d3dmodeTemp);
 
@@ -288,7 +316,6 @@ bool CIntelS3DDevice::OnDeviceCreated(IDirect3DDevice9Ex* pD3DDevice)
   pD3DDevice->AddRef();
 
   m_initialized = true;
-  return true;
 }
 
 // Switch the monitor to 3D mode
@@ -308,7 +335,11 @@ bool CIntelS3DDevice::SwitchTo3D(S3D_DISPLAY_MODE *pMode)
     return !FAILED(m_pS3DControl->SwitchTo3D(&mode));
   }
 
-  return !FAILED(m_pS3DControl->SwitchTo3D(&m_S3DPrefMode));
+  m_inStereo = !FAILED(m_pS3DControl->SwitchTo3D(&m_S3DPrefMode));
+
+  // if switch first time then d3d device need to be created in 3d mode.
+  // after create d3d device in 3d it may be switching to 3d without recreate
+  return m_inStereo && m_initialized;
 }
 
 // Switch the monitor back to 2D mode
@@ -331,13 +362,17 @@ bool CIntelS3DDevice::SwitchTo2D(S3D_DISPLAY_MODE *pMode)
     CSettings::Get().SetBool("videoscreen.fakefullscreen", false);
   }
 
+  m_inStereo = false;
   return !FAILED(hr);
 }
     
 // Activate left view, requires device to be set
 bool CIntelS3DDevice::SelectLeftView()
 {
-  // switch to  fake render target
+  if (!m_inStereo || !m_initialized)
+    return false;
+
+  // switch to fake render target
   if (FAILED(m_pD3DDevice->GetRenderTarget(0, &m_pRenderSurface)))
     return false;
 
@@ -347,14 +382,17 @@ bool CIntelS3DDevice::SelectLeftView()
 // Activates right view, requires device to be set
 bool CIntelS3DDevice::SelectRightView()
 {
-  // channel L completed render it to result surface
+  if (!m_inStereo || !m_initialized)
+    return false;
+
+  // channel L is complete, render it to result surface
   return !FAILED(m_pProcessLeft->VideoProcessBlt(m_pRenderSurface, &m_BltParams, &m_Sample, 1, NULL));
 }
 
 // Activates right view, requires device to be set
 bool CIntelS3DDevice::PresentFrame()
 {
-  if (m_pRenderSurface == NULL)
+  if (!m_inStereo || !m_initialized || m_pRenderSurface == NULL)
     return false;
 
   // channel R completed render it and back true render traget
@@ -370,54 +408,55 @@ bool CIntelS3DDevice::PresentFrame()
 
 bool CIntelS3DDevice::Less(const IGFX_DISPLAY_MODE &l, const IGFX_DISPLAY_MODE& r)
 {
-    if (r.ulResWidth >= 0xFFFF || r.ulResHeight >= 0xFFFF || r.ulRefreshRate >= 0xFFFF)
-        return false;
-
-    if (l.ulResWidth < r.ulResWidth)
-      return true;
-    else if (l.ulResHeight < r.ulResHeight)
-      return true;
-    else if (l.ulRefreshRate < r.ulRefreshRate)
-      return true;    
-        
+  if (r.ulResWidth >= 0xFFFF || r.ulResHeight >= 0xFFFF || r.ulRefreshRate >= 0xFFFF)
     return false;
+
+  if (l.ulResWidth < r.ulResWidth)
+    return true;
+  else if (l.ulResHeight < r.ulResHeight)
+    return true;
+  else if (l.ulRefreshRate < r.ulRefreshRate)
+    return true;    
+        
+  return false;
 }
 
 bool CIntelS3DDevice::CheckOverlaySupport(int iWidth, int iHeight, D3DFORMAT dFormat)
 {
-    D3DCAPS9                      d3d9caps;
-    D3DOVERLAYCAPS                d3doverlaycaps = {0};
-    IDirect3D9ExOverlayExtension *d3d9overlay    = NULL;
+  D3DCAPS9                      d3d9caps;
+  D3DOVERLAYCAPS                d3doverlaycaps = {0};
+  IDirect3D9ExOverlayExtension *d3d9overlay    = NULL;
 
-    bool overlaySupported = false;
+  bool overlaySupported = false;
 
-    memset(&d3d9caps, 0, sizeof(d3d9caps));
-    if (FAILED(m_pD3D->GetDeviceCaps(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, &d3d9caps)) 
-      || !(d3d9caps.Caps & D3DCAPS_OVERLAY))
+  memset(&d3d9caps, 0, sizeof(d3d9caps));
+
+  if (FAILED(m_pD3D->GetDeviceCaps(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, &d3d9caps)) 
+  || !(d3d9caps.Caps & D3DCAPS_OVERLAY))
+  {
+    overlaySupported = false;            
+  }
+  else
+  {
+    if (FAILED(m_pD3D->QueryInterface(IID_PPV_ARGS(&d3d9overlay))) || (d3d9overlay == NULL))
     {
-        overlaySupported = false;            
+      overlaySupported = false;
     }
     else
     {
-      if (FAILED(m_pD3D->QueryInterface(IID_PPV_ARGS(&d3d9overlay))) || (d3d9overlay == NULL))
-      {
-        overlaySupported = false;
-      }
-      else
-      {
-        HRESULT hr = d3d9overlay->CheckDeviceOverlayType(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL,
-                     iWidth,
-                     iHeight,
-                     dFormat, 
-                     NULL,
-                     D3DDISPLAYROTATION_IDENTITY, &d3doverlaycaps);
-
-        overlaySupported = !FAILED(hr);
-        SAFE_RELEASE(d3d9overlay);
-      }
+      HRESULT hr = d3d9overlay->CheckDeviceOverlayType(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL,
+                                                       iWidth,
+                                                       iHeight,
+                                                       dFormat, 
+                                                       NULL,
+                                                       D3DDISPLAYROTATION_IDENTITY, 
+                                                       &d3doverlaycaps);
+      overlaySupported = !FAILED(hr);
+      SAFE_RELEASE(d3d9overlay);
     }
+  }
 
-    return overlaySupported;
+  return overlaySupported;
 }
 
 #endif // HAS_DX

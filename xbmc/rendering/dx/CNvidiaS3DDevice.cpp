@@ -29,6 +29,7 @@
 #include "threads/SingleLock.h"
 #include "guilib/GUIWindowManager.h"
 #include "settings/Settings.h"
+#include "windowing/WindowingFactory.h"
 
 #define CHECK(a) \
 do { \
@@ -63,11 +64,17 @@ CNvidiaS3DDevice::CNvidiaS3DDevice(IDirect3D9Ex* pD3D) : IS3DDevice(pD3D),
     m_uiScreenHeight(0),
     m_pRenderSurface(NULL)
 {
-    m_supported = PreInit();
+  m_supported = PreInit();
+
+  if (m_supported)
+    g_Windowing.Register(this);
 }
 
 CNvidiaS3DDevice::~CNvidiaS3DDevice() 
 {
+  if (m_supported)
+    g_Windowing.Unregister(this);
+
   UnInit();
   SAFE_RELEASE(m_pD3DDevice);
 }
@@ -79,9 +86,9 @@ void CNvidiaS3DDevice::UnInit(void)
 }
 
 // 
-bool CNvidiaS3DDevice::CorrectPresentParams(D3DPRESENT_PARAMETERS *pD3DPP, bool stereo)
+bool CNvidiaS3DDevice::CorrectPresentParams(D3DPRESENT_PARAMETERS *pD3DPP)
 {
-  if (stereo)
+  if (m_inStereo)
   {
     // NOTE 3D Vision can be in full screen only
     pD3DPP->Windowed = false;
@@ -103,8 +110,24 @@ bool CNvidiaS3DDevice::PreInit()
   return true;
 }
 
-bool CNvidiaS3DDevice::OnDeviceCreated(IDirect3DDevice9Ex* pD3DDevice)
+void CNvidiaS3DDevice::OnDestroyDevice()
 {
+  UnInit();
+}
+
+void CNvidiaS3DDevice::OnLostDevice()
+{
+  UnInit();
+}
+
+void CNvidiaS3DDevice::OnResetDevice()
+{
+}
+
+void CNvidiaS3DDevice::OnCreateDevice()
+{
+  IDirect3DDevice9Ex* pD3DDevice = (IDirect3DDevice9Ex*)g_Windowing.Get3DDevice();
+
   D3DDISPLAYMODE d3dmodeTemp;
   pD3DDevice->GetDisplayMode(0, &d3dmodeTemp);
 
@@ -112,14 +135,16 @@ bool CNvidiaS3DDevice::OnDeviceCreated(IDirect3DDevice9Ex* pD3DDevice)
   m_uiScreenHeight = d3dmodeTemp.Height;
 
   // 3D VISION uses a single surface 2x images wide and image high
-  CHECK(pD3DDevice->CreateRenderTarget(m_uiScreenWidth*2, m_uiScreenHeight, 
-                                       D3DFMT_X8R8G8B8, D3DMULTISAMPLE_NONE, 0, TRUE, &m_pRenderSurface, NULL));
+  if (FAILED(pD3DDevice->CreateRenderTarget(m_uiScreenWidth*2, m_uiScreenHeight, 
+                                       D3DFMT_X8R8G8B8, D3DMULTISAMPLE_NONE, 0, TRUE, &m_pRenderSurface, NULL)))
+  {
+    return;
+  }
 
   m_pD3DDevice = pD3DDevice;
   pD3DDevice->AddRef();
 
   m_initialized = true;
-  return true;
 }
 
 // Switch the monitor to 3D mode
@@ -135,7 +160,7 @@ bool CNvidiaS3DDevice::SwitchTo3D(S3D_DISPLAY_MODE *pMode)
 
   // do nothing, auto switch to 3d with first signed frame
 
-  return true;
+  return m_initialized;
 }
 
 // Switch the monitor back to 2D mode
@@ -244,7 +269,7 @@ void CNvidiaS3DDevice::Add3DSignature()
   }
   catch (...)
   {
-    // on some systems it may fails with access violation
+    // on some systems (probably without 3D VISION) it may fails with access violation
     // don't spam this
     //CLog::Log(LOGERROR, __FUNCTION__" - signing stereo image failed with access violation");
   }

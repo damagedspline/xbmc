@@ -26,24 +26,22 @@
 #include <d3d9.h>
 #include <dxva2api.h>
 #include "IS3DDevice.h"
+#include "guilib/D3DResource.h"
 
 class IS3DDevice;
 
-class CNvidiaS3DDevice: public IS3DDevice
+class CNvidiaS3DDevice: public IS3DDevice, public ID3DResource
 {
 public:
   CNvidiaS3DDevice(IDirect3D9Ex* pD3D);
  ~CNvidiaS3DDevice();
 
   // correct present params for correct stereo rendering some implementations need it
-  bool CorrectPresentParams(D3DPRESENT_PARAMETERS *pD3DPP, bool stereo);
+  bool CorrectPresentParams(D3DPRESENT_PARAMETERS *pD3DPP);
 
   // Returns true if S3D is supported by the platform and exposes supported display modes 
   // !! m.b. not needed
   bool GetS3DCaps(S3D_CAPS *pCaps);
-
-  // create devices for stereoscopic rendering
-  bool OnDeviceCreated(IDirect3DDevice9Ex* pD3DDevice);
 
   // Switch the monitor to 3D mode
   // Call with NULL to use current display mode
@@ -63,6 +61,11 @@ public:
   bool PresentFrame(void);
 
   void UnInit(void);
+
+  void OnCreateDevice();
+  void OnDestroyDevice();
+  void OnLostDevice();
+  void OnResetDevice();
 
 protected:
   bool PreInit(void);
