@@ -1336,6 +1336,18 @@
     <ClCompile Include="..\..\xbmc\rendering\dx\GUIWindowTestPatternDX.cpp">
       <Filter>rendering\dx</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\xbmc\rendering\dx\IS3DDevice.cpp">
+      <Filter>rendering\dx</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\xbmc\rendering\dx\CIntelS3DDevice.cpp">
+      <Filter>rendering\dx</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\xbmc\rendering\dx\CNvidiaS3DDevice.cpp">
+      <Filter>rendering\dx</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\xbmc\rendering\dx\CAmdS3DDevice.cpp">
+      <Filter>rendering\dx</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\xbmc\rendering\dx\RenderSystemDX.cpp">
       <Filter>rendering\dx</Filter>
     </ClCompile>
@@ -4244,6 +4256,18 @@
       <Filter>rendering</Filter>
     </ClInclude>
     <ClInclude Include="..\..\xbmc\rendering\dx\GUIWindowTestPatternDX.h">
+      <Filter>rendering\dx</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\xbmc\rendering\dx\IS3DDevice.h">
+      <Filter>rendering\dx</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\xbmc\rendering\dx\CIntelS3DDevice.h">
+      <Filter>rendering\dx</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\xbmc\rendering\dx\CNvidiaS3DDevice.h">
+      <Filter>rendering\dx</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\xbmc\rendering\dx\CAmdS3DDevice.h">
       <Filter>rendering\dx</Filter>
     </ClInclude>
     <ClInclude Include="..\..\xbmc\rendering\dx\RenderSystemDX.h">

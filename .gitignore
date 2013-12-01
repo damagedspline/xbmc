@@ -404,6 +404,7 @@ lib/cpluff/stamp-h1
 
 # /system
 /system/zlib1.dll
+/system/intel_s3d.dll
 
 
 # /screensavers/

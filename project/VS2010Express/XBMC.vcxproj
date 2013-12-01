@@ -757,6 +757,10 @@
     <ClCompile Include="..\..\xbmc\pvr\windows\GUIWindowPVRSearch.cpp" />
     <ClCompile Include="..\..\xbmc\pvr\windows\GUIWindowPVRTimers.cpp" />
     <ClCompile Include="..\..\xbmc\rendering\dx\GUIWindowTestPatternDX.cpp" />
+    <ClCompile Include="..\..\xbmc\rendering\dx\IS3DDevice.cpp" />
+    <ClCompile Include="..\..\xbmc\rendering\dx\CIntelS3DDevice.cpp" />
+    <ClCompile Include="..\..\xbmc\rendering\dx\CNvidiaS3DDevice.cpp" />
+    <ClCompile Include="..\..\xbmc\rendering\dx\CAmdS3DDevice.cpp" />
     <ClCompile Include="..\..\xbmc\rendering\dx\RenderSystemDX.cpp" />
     <ClCompile Include="..\..\xbmc\rendering\RenderSystem.cpp" />
     <ClCompile Include="..\..\xbmc\SectionLoader.cpp" />
@@ -2012,6 +2016,10 @@
     <ClInclude Include="..\..\xbmc\pvr\windows\GUIWindowPVRSearch.h" />
     <ClInclude Include="..\..\xbmc\pvr\windows\GUIWindowPVRTimers.h" />
     <ClInclude Include="..\..\xbmc\rendering\dx\GUIWindowTestPatternDX.h" />
+    <ClInclude Include="..\..\xbmc\rendering\dx\IS3DDevice.h" />
+    <ClInclude Include="..\..\xbmc\rendering\dx\CIntelS3DDevice.h" />
+    <ClInclude Include="..\..\xbmc\rendering\dx\CNvidiaS3DDevice.h" />
+    <ClInclude Include="..\..\xbmc\rendering\dx\CAmdS3DDevice.h" />
     <ClInclude Include="..\..\xbmc\rendering\dx\RenderSystemDX.h" />
     <ClInclude Include="..\..\xbmc\rendering\RenderSystem.h" />
     <ClInclude Include="..\..\xbmc\SectionLoader.h" />

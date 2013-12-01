@@ -25,9 +25,16 @@
 
 #pragma once
 
+#define MEMCPY_VAR(dstVarName, src, count) memcpy_s(&(dstVarName), sizeof(dstVarName), (src), (count))
+
 #include <vector>
 #include "rendering/RenderSystem.h"
 #include "threads/CriticalSection.h"
+#include <d3d9.h>
+#include <dxva2api.h>
+#include <dxva.h>
+#include <win32/igfx_s3dcontrol/igfx_s3dcontrol.h>
+#include "IS3DDevice.h"
 
 enum PCI_Vendors
 {
@@ -37,6 +44,8 @@ enum PCI_Vendors
 };
 
 class ID3DResource;
+class IGFXS3DControl;
+class IS3DDevice;
 
 class CRenderSystemDX : public CRenderSystemBase
 {
@@ -162,6 +171,9 @@ protected:
   D3DXMATRIX                  m_projection;
   D3DXMATRIX                  m_view;
   D3DXMATRIX                  m_world;
+
+  // S3D
+  IS3DDevice*                 m_pS3DDevice;
 };
 
 #endif

@@ -134,7 +134,7 @@ struct DXVABuffer : SVideoBuffer
   unsigned int frameIdx;
 };
 
-class CWinRenderer : public CBaseRenderer
+class CWinRenderer : public CBaseRenderer, public ID3DResource
 {
 public:
   CWinRenderer();
@@ -156,6 +156,11 @@ public:
   virtual void         Reset(); /* resets renderer after seek for example */
   virtual bool         IsConfigured() { return m_bConfigured; }
   virtual void         Flush();
+
+  virtual void OnCreateDevice()  {}
+  virtual void OnDestroyDevice() {}
+  virtual void OnLostDevice()    {}
+  virtual void OnResetDevice()   { CSingleLock lock(m_section); Reset(); }
 
   virtual CRenderInfo GetRenderInfo();
 
@@ -239,6 +244,7 @@ protected:
 
   int                  m_neededBuffers;
   unsigned int         m_frameIdx;
+  CCriticalSection     m_section;
 };
 
 #else
