@@ -27,10 +27,13 @@
 #include <dxva2api.h>
 #include "IS3DDevice.h"
 #include "guilib/D3DResource.h"
+#include "settings/lib/ISettingCallback.h"
 
 class IS3DDevice;
 
-class CNvidiaS3DDevice: public IS3DDevice, public ID3DResource
+class CNvidiaS3DDevice: public IS3DDevice,
+                        public ID3DResource,
+                        public ISettingCallback
 {
 public:
   CNvidiaS3DDevice(IDirect3D9Ex* pD3D);
@@ -67,11 +70,14 @@ public:
   void OnLostDevice();
   void OnResetDevice();
 
+  bool OnSettingChanging(const CSetting *setting);
+
 protected:
   bool PreInit(void);
   void Add3DSignature(void);
 
   bool                    m_restoreFFScreen;
+  bool                    m_inStereo;
   unsigned int            m_uiScreenWidth;
   unsigned int            m_uiScreenHeight;
 

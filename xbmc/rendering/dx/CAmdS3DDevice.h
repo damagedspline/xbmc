@@ -27,12 +27,15 @@
 #include <dxva2api.h>
 #include "IS3DDevice.h"
 #include "guilib/D3DResource.h"
+#include "settings/lib/ISettingCallback.h"
 #include "win32/igfx_s3dcontrol/AtiDx9Stereo.h"
 
 class IS3DDevice;
 class IGFXS3DControl;
 
-class CAmdS3DDevice: public IS3DDevice, public ID3DResource
+class CAmdS3DDevice: public IS3DDevice,
+                     public ID3DResource,
+                     public ISettingCallback
 {
 public:
   CAmdS3DDevice(IDirect3D9Ex* pD3D);
@@ -67,6 +70,8 @@ public:
   void OnDestroyDevice();
   void OnLostDevice();
   void OnResetDevice();
+
+  bool OnSettingChanging(const CSetting *setting);
 
 protected:
   bool    PreInit(void);

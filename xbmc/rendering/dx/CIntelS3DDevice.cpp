@@ -25,11 +25,12 @@
 #include <dxva2api.h>
 #include "utils/log.h"
 #include "system.h"
-#include "CIntelS3DDevice.h"
-#include "threads/SingleLock.h"
 #include "guilib/GUIWindowManager.h"
+#include "settings/lib/Setting.h"
 #include "settings/Settings.h"
+#include "threads/SingleLock.h"
 #include "windowing/WindowingFactory.h"
+#include "CIntelS3DDevice.h"
 
 // Dynamic loading of intel_s3d method.
 typedef IGFXS3DControl* (__stdcall *CreateIGFXS3DControlExPtr)(void);
@@ -88,14 +89,23 @@ CIntelS3DDevice::CIntelS3DDevice(IDirect3D9Ex* pD3D)
   m_supported = PreInit();
 
   if (m_supported)
+  {
     g_Windowing.Register(this);
+
+    // register ISettingCallback 
+    std::set<std::string> settingSet;
+    settingSet.insert("videoscreen.fakefullscreen");
+    CSettings::Get().RegisterCallback(this, settingSet);
+  }
 }
 
 CIntelS3DDevice::~CIntelS3DDevice() 
 {
   if (m_supported)
+  {
     g_Windowing.Unregister(this);
-
+    CSettings::Get().UnregisterCallback(this);
+  }
   UnInit();
 
   SAFE_RELEASE(m_pDeviceManager9);
@@ -318,6 +328,15 @@ void CIntelS3DDevice::OnCreateDevice()
   m_initialized = true;
 }
 
+bool CIntelS3DDevice::OnSettingChanging(const CSetting *setting)
+{
+  if (setting == NULL)
+    return true;
+
+  const std::string &settingId = setting->GetId();
+  return (settingId == "videoscreen.fakefullscreen" && m_inStereo) ? false : true;
+}
+
 // Switch the monitor to 3D mode
 // Call with NULL to use current display mode
 bool CIntelS3DDevice::SwitchTo3D(S3D_DISPLAY_MODE *pMode)
@@ -325,7 +344,6 @@ bool CIntelS3DDevice::SwitchTo3D(S3D_DISPLAY_MODE *pMode)
   if (g_graphicsContext.IsFullScreenRoot() && !CSettings::Get().GetBool("videoscreen.fakefullscreen"))
   {
     CSettings::Get().SetBool("videoscreen.fakefullscreen", true);
-    g_graphicsContext.LockFakeFullScreen(true);
     m_restoreFFScreen = true;
   }
 
@@ -336,6 +354,9 @@ bool CIntelS3DDevice::SwitchTo3D(S3D_DISPLAY_MODE *pMode)
   }
 
   m_inStereo = !FAILED(m_pS3DControl->SwitchTo3D(&m_S3DPrefMode));
+
+  if (!m_inStereo)
+    CLog::Log(LOGWARNING, __FUNCTION__" - Switching to stereo 3D failed");
 
   // if switch first time then d3d device need to be created in 3d mode.
   // after create d3d device in 3d it may be switching to 3d without recreate
@@ -355,14 +376,17 @@ bool CIntelS3DDevice::SwitchTo2D(S3D_DISPLAY_MODE *pMode)
   else
     hr = m_pS3DControl->SwitchTo2D(NULL);
 
+  m_inStereo = false;
+
+  if (FAILED(hr))
+    CLog::Log(LOGWARNING, __FUNCTION__" - Switching to 2D failed");
+
   if (m_restoreFFScreen)
   {
     m_restoreFFScreen = false;
-    g_graphicsContext.LockFakeFullScreen(false);
     CSettings::Get().SetBool("videoscreen.fakefullscreen", false);
   }
 
-  m_inStereo = false;
   return !FAILED(hr);
 }
     
@@ -395,7 +419,7 @@ bool CIntelS3DDevice::PresentFrame()
   if (!m_inStereo || !m_initialized || m_pRenderSurface == NULL)
     return false;
 
-  // channel R completed render it and back true render traget
+  // channel R is complete, render it and back true render traget
   if(FAILED(m_pProcessRight->VideoProcessBlt(m_pRenderSurface, &m_BltParams, &m_Sample, 1, NULL)))
     return false;
 

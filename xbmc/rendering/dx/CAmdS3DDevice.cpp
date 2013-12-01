@@ -23,14 +23,15 @@
 
 #include <d3d9.h>
 #include <dxva2api.h>
-#include "utils/log.h"
 #include "system.h"
-#include "CAmdS3DDevice.h"
-#include "threads/SingleLock.h"
+#include "utils/log.h"
 #include "guilib/GUIWindowManager.h"
+#include "settings/lib/Setting.h"
 #include "settings/Settings.h"
+#include "threads/SingleLock.h"
 #include "windowing/WindowingFactory.h"
 #include "win32/igfx_s3dcontrol/AtiDx9Stereo.h"
+#include "CAmdS3DDevice.h"
 
 CAmdS3DDevice::CAmdS3DDevice(IDirect3D9Ex* pD3D) : IS3DDevice(pD3D),
     m_restoreFFScreen(false),
@@ -46,11 +47,26 @@ CAmdS3DDevice::CAmdS3DDevice(IDirect3D9Ex* pD3D) : IS3DDevice(pD3D),
     m_pLeftEyeDS(NULL),
     m_pD3DDevice(NULL)
 {
-    m_supported = PreInit();
+  m_supported = PreInit();
+  if (m_supported)
+  {
+    g_Windowing.Register(this);
+
+    // register ISettingCallback 
+    std::set<std::string> settingSet;
+    settingSet.insert("videoscreen.fakefullscreen");
+    CSettings::Get().RegisterCallback(this, settingSet);
+  }
 }
 
 CAmdS3DDevice::~CAmdS3DDevice() 
 {
+  if (m_supported)
+  {
+    g_Windowing.Unregister(this);
+    CSettings::Get().UnregisterCallback(this);
+  }
+
   UnInit();
 }
 
@@ -362,6 +378,15 @@ bool CAmdS3DDevice::CreateResources()
   return true;
 }
 
+bool CAmdS3DDevice::OnSettingChanging(const CSetting *setting)
+{
+  if (setting == NULL)
+    return true;
+
+  const std::string &settingId = setting->GetId();
+  return (settingId == "videoscreen.fakefullscreen" && m_enableStereo) ? false : true;
+}
+
 // Switch the monitor to 3D mode
 // Call with NULL to use current display mode
 bool CAmdS3DDevice::SwitchTo3D(S3D_DISPLAY_MODE *pMode)
@@ -369,10 +394,8 @@ bool CAmdS3DDevice::SwitchTo3D(S3D_DISPLAY_MODE *pMode)
   if (g_graphicsContext.IsFullScreenRoot() && !CSettings::Get().GetBool("videoscreen.fakefullscreen"))
   {
     CSettings::Get().SetBool("videoscreen.fakefullscreen", true);
-    g_graphicsContext.LockFakeFullScreen(true);
     m_restoreFFScreen = true;
   }
-
   m_enableStereo = true;
   return false;
 }
@@ -381,20 +404,23 @@ bool CAmdS3DDevice::SwitchTo3D(S3D_DISPLAY_MODE *pMode)
 // Call with NULL to use current display mode
 bool CAmdS3DDevice::SwitchTo2D(S3D_DISPLAY_MODE *pMode)
 {
+  m_enableStereo = false;
+
   if (m_restoreFFScreen)
   {
     m_restoreFFScreen = false;
-    g_graphicsContext.LockFakeFullScreen(false);
     CSettings::Get().SetBool("videoscreen.fakefullscreen", false);
   }
 
-  m_enableStereo = false;
   return false;
 }
     
 // Activate left view, requires device to be set
 bool CAmdS3DDevice::SelectLeftView()
 {
+  if (!m_enableStereo)
+    return false;
+
   m_pD3DDevice->SetRenderTarget(0, m_pLeftEyeRT);
   m_pD3DDevice->SetDepthStencilSurface(m_pLeftEyeDS);
   return true;
@@ -403,6 +429,9 @@ bool CAmdS3DDevice::SelectLeftView()
 // Activates right view, requires device to be set
 bool CAmdS3DDevice::SelectRightView()
 {
+  if (!m_enableStereo)
+    return false;
+
   m_pD3DDevice->SetRenderTarget(0, m_pRightEyeRT);
   m_pD3DDevice->SetDepthStencilSurface(m_pRightEyeDS);
   return true;
@@ -411,7 +440,10 @@ bool CAmdS3DDevice::SelectRightView()
 // Activates right view, requires device to be set
 bool CAmdS3DDevice::PresentFrame()
 {
-	// Use the quad buffer render target
+  if (!m_enableStereo)
+    return false;
+
+  // Use the quad buffer render target
   m_pD3DDevice->SetRenderTarget(0, m_pBackBufferSurface);
 
   // update the quad buffer with the right render target

@@ -60,7 +60,6 @@ CGraphicContext::CGraphicContext(void) :
   m_stereoView(RENDER_STEREO_VIEW_OFF)
   , m_stereoMode(RENDER_STEREO_MODE_OFF)
   , m_nextStereoMode(RENDER_STEREO_MODE_OFF)
-  , m_lockFFScreen(false)
 {
 }
 
@@ -79,19 +78,6 @@ void CGraphicContext::OnSettingChanged(const CSetting *setting)
     if (IsFullScreenRoot())
       SetVideoResolution(GetVideoResolution(), true);
   }
-}
-
-bool CGraphicContext::OnSettingChanging(const CSetting *setting)
-{
-  if (setting == NULL)
-    return true;
-
-  const std::string &settingId = setting->GetId();
-  if (settingId == "videoscreen.fakefullscreen" && m_lockFFScreen)
-  {
-    return false;
-  }
-  return true;
 }
 
 void CGraphicContext::SetOrigin(float x, float y)

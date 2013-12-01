@@ -25,11 +25,12 @@
 #include <dxva2api.h>
 #include "utils/log.h"
 #include "system.h"
-#include "CNvidiaS3DDevice.h"
-#include "threads/SingleLock.h"
 #include "guilib/GUIWindowManager.h"
+#include "settings/lib/Setting.h"
 #include "settings/Settings.h"
+#include "threads/SingleLock.h"
 #include "windowing/WindowingFactory.h"
+#include "CNvidiaS3DDevice.h"
 
 #define CHECK(a) \
 do { \
@@ -60,6 +61,7 @@ typedef struct _NVSTEREOIMAGEHEADER
 
 CNvidiaS3DDevice::CNvidiaS3DDevice(IDirect3D9Ex* pD3D) : IS3DDevice(pD3D),
     m_restoreFFScreen(false),
+    m_inStereo(false),
     m_uiScreenWidth(0),
     m_uiScreenHeight(0),
     m_pRenderSurface(NULL)
@@ -67,13 +69,23 @@ CNvidiaS3DDevice::CNvidiaS3DDevice(IDirect3D9Ex* pD3D) : IS3DDevice(pD3D),
   m_supported = PreInit();
 
   if (m_supported)
+  {
     g_Windowing.Register(this);
+
+    // register ISettingCallback 
+    std::set<std::string> settingSet;
+    settingSet.insert("videoscreen.fakefullscreen");
+    CSettings::Get().RegisterCallback(this, settingSet);
+  }
 }
 
 CNvidiaS3DDevice::~CNvidiaS3DDevice() 
 {
   if (m_supported)
+  {
     g_Windowing.Unregister(this);
+    CSettings::Get().UnregisterCallback(this);
+  }
 
   UnInit();
   SAFE_RELEASE(m_pD3DDevice);
@@ -147,6 +159,15 @@ void CNvidiaS3DDevice::OnCreateDevice()
   m_initialized = true;
 }
 
+bool CNvidiaS3DDevice::OnSettingChanging(const CSetting *setting)
+{
+  if (setting == NULL)
+    return true;
+
+  const std::string &settingId = setting->GetId();
+  return (settingId == "videoscreen.fakefullscreen" && m_inStereo) ? false : true;
+}
+
 // Switch the monitor to 3D mode
 // Call with NULL to use current display mode
 bool CNvidiaS3DDevice::SwitchTo3D(S3D_DISPLAY_MODE *pMode)
@@ -154,27 +175,27 @@ bool CNvidiaS3DDevice::SwitchTo3D(S3D_DISPLAY_MODE *pMode)
   if (g_graphicsContext.IsFullScreenRoot() && CSettings::Get().GetBool("videoscreen.fakefullscreen"))
   {
     CSettings::Get().SetBool("videoscreen.fakefullscreen", false);
-    g_graphicsContext.LockFakeFullScreen(true);
     m_restoreFFScreen = true;
   }
 
   // do nothing, auto switch to 3d with first signed frame
+  m_inStereo = true;
 
-  return m_initialized;
+  return m_inStereo && m_initialized;
 }
 
 // Switch the monitor back to 2D mode
 // Call with NULL to use current display mode
 bool CNvidiaS3DDevice::SwitchTo2D(S3D_DISPLAY_MODE *pMode)
 {
+  // do nothing, auto switch to 2d with first unsigned frame
+  m_inStereo = false;
+
   if (m_restoreFFScreen)
   {
     m_restoreFFScreen = false;
-    g_graphicsContext.LockFakeFullScreen(false);
     CSettings::Get().SetBool("videoscreen.fakefullscreen", true);
   }
-
-  // do nothing, auto switch to 2d with first unsigned frame
 
   return true;
 }
@@ -182,12 +203,18 @@ bool CNvidiaS3DDevice::SwitchTo2D(S3D_DISPLAY_MODE *pMode)
 // Activate left view, requires device to be set
 bool CNvidiaS3DDevice::SelectLeftView()
 {
+  if (!m_inStereo)
+    return false;
+
   return true;
 }
 
 // Activates right view, requires device to be set
 bool CNvidiaS3DDevice::SelectRightView()
 {
+  if (!m_inStereo)
+    return false;
+
   IDirect3DSurface9* pTarget;
   CHECK(m_pD3DDevice->GetRenderTarget(0, &pTarget));
 
@@ -209,6 +236,9 @@ bool CNvidiaS3DDevice::SelectRightView()
 // Activates right view, requires device to be set
 bool CNvidiaS3DDevice::PresentFrame()
 {
+  if (!m_inStereo)
+    return false;
+
   HRESULT hr;
 
   IDirect3DSurface9* pTarget;
