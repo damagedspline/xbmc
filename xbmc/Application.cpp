@@ -1058,10 +1058,20 @@ bool CApplication::InitDirectoriesWin32()
 
   std::string strWin32UserFolder = CWIN32Util::GetProfilePath();
 
-  g_advancedSettings.m_logFolder = strWin32UserFolder;
+  std::string strLogsFolder = CEnvironment::getenv("XBMC_LOGS");
+  if (!strLogsFolder.empty())
+    g_advancedSettings.m_logFolder = CSpecialProtocol::TranslatePath(strLogsFolder);
+  else
+    g_advancedSettings.m_logFolder = strWin32UserFolder;
+
   CSpecialProtocol::SetHomePath(strWin32UserFolder);
   CSpecialProtocol::SetMasterProfilePath(URIUtils::AddFileToFolder(strWin32UserFolder, "userdata"));
-  CSpecialProtocol::SetTempPath(URIUtils::AddFileToFolder(strWin32UserFolder,"cache"));
+
+  std::string strTempFolder = CEnvironment::getenv("XBMC_TEMP");
+  if (!strTempFolder.empty())
+    CSpecialProtocol::SetTempPath(CSpecialProtocol::TranslatePath(strTempFolder));
+  else
+    CSpecialProtocol::SetTempPath(URIUtils::AddFileToFolder(strWin32UserFolder,"cache"));
 
   CEnvironment::setenv("KODI_PROFILE_USERDATA", CSpecialProtocol::TranslatePath("special://masterprofile/"));
 
