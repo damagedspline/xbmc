@@ -93,10 +93,11 @@ static const dxva2_mode_t dxva2_modes[] = {
     { "Windows Media Video 9 MoComp",           &D3D11_DECODER_PROFILE_WMV9_MOCOMP,   0 },
     { "Windows Media Video 9 post processing",  &D3D11_DECODER_PROFILE_WMV9_POSTPROC, 0 },
 
-    { "VC-1 VLD",             &D3D11_DECODER_PROFILE_VC1_VLD,      AV_CODEC_ID_VC1 },
-    { "VC-1 VLD",             &D3D11_DECODER_PROFILE_VC1_VLD,      AV_CODEC_ID_WMV3 },
+    // prefer VC1_D2010 decoder over the older variant
     { "VC-1 VLD 2010",        &D3D11_DECODER_PROFILE_VC1_D2010,    AV_CODEC_ID_VC1 },
     { "VC-1 VLD 2010",        &D3D11_DECODER_PROFILE_VC1_D2010,    AV_CODEC_ID_WMV3 },
+    { "VC-1 VLD",             &D3D11_DECODER_PROFILE_VC1_VLD,      AV_CODEC_ID_VC1 },
+    { "VC-1 VLD",             &D3D11_DECODER_PROFILE_VC1_VLD,      AV_CODEC_ID_WMV3 },
     { "VC-1 IDCT",            &D3D11_DECODER_PROFILE_VC1_IDCT,     0 },
     { "VC-1 MoComp",          &D3D11_DECODER_PROFILE_VC1_MOCOMP,   0 },
     { "VC-1 post processing", &D3D11_DECODER_PROFILE_VC1_POSTPROC, 0 },
