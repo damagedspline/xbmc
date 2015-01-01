@@ -1103,8 +1103,12 @@ bool CDecoder::OpenDecoder()
                                       m_context->surface_count, m_context->surface))
     return false;
 
+  IDirect3DDevice9* pDev = (IDirect3DDevice9*) g_Windowing.Get3DDevice();
   for(unsigned i = 0; i < m_context->surface_count; i++)
   {
+    // fill the surface in black, to avoid the "green screen" in case the first frame fails to decode.
+    if (pDev) pDev->ColorFill(m_context->surface[i], NULL, D3DCOLOR_XYUV(0, 128, 128));
+
     m_surface_context->AddSurface(m_context->surface[i]);
   }
 
