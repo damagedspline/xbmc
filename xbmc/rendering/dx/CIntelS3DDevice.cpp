@@ -318,6 +318,8 @@ void CIntelS3DDevice::OnCreateDevice()
 
   // create render target for channels
   pD3DDevice->CreateRenderTarget(uiWidth, uiHeight, D3DFMT_X8R8G8B8, D3DMULTISAMPLE_NONE, 0, TRUE, &m_Sample.SrcSurface, NULL);
+  // clear target
+  pD3DDevice->ColorFill(m_Sample.SrcSurface, NULL, D3DCOLOR_XYUV(0, 128, 128));
 
   // back to L channel (for possible issue with dxva renderer)
   m_pS3DControl->SelectLeftView();
