@@ -25,7 +25,6 @@
 #include <dxva2api.h>
 #include "utils/log.h"
 #include "system.h"
-#include "guilib/GUIWindowManager.h"
 #include "settings/lib/Setting.h"
 #include "settings/Settings.h"
 #include "threads/SingleLock.h"
@@ -74,11 +73,9 @@ static bool LoadS3D()
   return true;
 }
 
-CIntelS3DDevice::CIntelS3DDevice(IDirect3D9Ex* pD3D) 
-    : IS3DDevice(pD3D),
+CIntelS3DDevice::CIntelS3DDevice(IDirect3D9Ex* pD3D)  : IS3DDevice(pD3D),
     m_resetToken(0),
     m_restoreFFScreen(false),
-    m_inStereo(false),
     m_pS3DControl(NULL),
     m_pDeviceManager9(NULL),
     m_pProcessService(NULL),
@@ -87,7 +84,6 @@ CIntelS3DDevice::CIntelS3DDevice(IDirect3D9Ex* pD3D)
     m_pRenderSurface(NULL)
 {
   m_supported = PreInit();
-
   if (m_supported)
   {
     g_Windowing.Register(this);
@@ -97,6 +93,7 @@ CIntelS3DDevice::CIntelS3DDevice(IDirect3D9Ex* pD3D)
     settingSet.insert("videoscreen.fakefullscreen");
     CSettings::Get().RegisterCallback(this, settingSet);
   }
+  ZeroMemory(&m_Sample, sizeof(m_Sample));
 }
 
 CIntelS3DDevice::~CIntelS3DDevice() 
@@ -126,16 +123,17 @@ void CIntelS3DDevice::UnInit(void)
 // 
 bool CIntelS3DDevice::CorrectPresentParams(D3DPRESENT_PARAMETERS *pD3DPP)
 {
-  if (m_inStereo)
+  if (m_stereoEnabled)
   {
     // NOTE overlay may be used only in windowed mode
     pD3DPP->Windowed = true;
     pD3DPP->SwapEffect = D3DSWAPEFFECT_OVERLAY;
+    pD3DPP->FullScreen_RefreshRateInHz = D3DPRESENT_RATE_DEFAULT;
 
     // Mark the back buffer lockable if software DXVA2 could be used.
     // This is because software DXVA2 device requires a lockable render target
     // for the optimal performance.
-    pD3DPP->Flags |= D3DPRESENTFLAG_LOCKABLE_BACKBUFFER;
+    //pD3DPP->Flags |= D3DPRESENTFLAG_LOCKABLE_BACKBUFFER;
   }
 
   return true;
@@ -152,7 +150,6 @@ bool CIntelS3DDevice::GetS3DCaps(S3D_CAPS *pCaps)
   pCaps->uiNumEntries = S3DCaps.ulNumEntries;
   pCaps->SupportedModes = new S3D_DISPLAY_MODE[S3DCaps.ulNumEntries];
 
-  unsigned long pref_idx = 0;
   for (unsigned long  i = 0; i < S3DCaps.ulNumEntries; i++)
   {
     S3D_DISPLAY_MODE* mode = &pCaps->SupportedModes[i];
@@ -243,10 +240,10 @@ void CIntelS3DDevice::OnResetDevice()
 
 void CIntelS3DDevice::OnCreateDevice()
 {
-  if (!m_inStereo)
+  if (!m_stereoEnabled)
     return;
 
-  IDirect3DDevice9Ex* pD3DDevice = (IDirect3DDevice9Ex*)g_Windowing.Get3DDevice();
+  IDirect3DDevice9Ex* pD3DDevice = reinterpret_cast<IDirect3DDevice9Ex*>(g_Windowing.Get3DDevice());
 
   D3DDISPLAYMODE d3dmodeTemp;
   pD3DDevice->GetDisplayMode(0, &d3dmodeTemp);
@@ -257,14 +254,16 @@ void CIntelS3DDevice::OnCreateDevice()
 
   DXVA2_AYUVSample16 color = {0x8000, 0x8000, 0x1000, 0xffff};
 
-  DXVA2_ExtendedFormat format = { DXVA2_SampleProgressiveFrame,           // SampleFormat
-                                  DXVA2_VideoChromaSubsampling_MPEG2,     // VideoChromaSubsampling
-                                  DXVA2_NominalRange_Normal,              // NominalRange
-                                  DXVA2_VideoTransferMatrix_BT709,        // VideoTransferMatrix
-                                  DXVA2_VideoLighting_dim,                // VideoLighting
-                                  DXVA2_VideoPrimaries_BT709,             // VideoPrimaries
-                                  DXVA2_VideoTransFunc_709                // VideoTransferFunction            
-                                };
+  DXVA2_ExtendedFormat format = 
+  { 
+    DXVA2_SampleProgressiveFrame,           // SampleFormat
+    DXVA2_VideoChromaSubsampling_MPEG2,     // VideoChromaSubsampling
+    DXVA2_NominalRange_Normal,              // NominalRange
+    DXVA2_VideoTransferMatrix_BT709,        // VideoTransferMatrix
+    DXVA2_VideoLighting_dim,                // VideoLighting
+    DXVA2_VideoPrimaries_BT709,             // VideoPrimaries
+    DXVA2_VideoTransFunc_709                // VideoTransferFunction            
+  };
 
   ZeroMemory(&m_VideoDesc, sizeof(m_VideoDesc));
   ZeroMemory(&m_BltParams, sizeof(m_BltParams));
@@ -299,12 +298,12 @@ void CIntelS3DDevice::OnCreateDevice()
   m_Sample.SrcRect = m_Sample.DstRect = rect;
 
   // Reset the D3DDeviceManager with the new device 
-  m_pDeviceManager9->ResetDevice(((IDirect3DDevice9Ex*)pD3DDevice), m_resetToken);
+  m_pDeviceManager9->ResetDevice(reinterpret_cast<IDirect3DDevice9Ex*>(pD3DDevice), m_resetToken);
 
   m_pS3DControl->SetDevice(m_pDeviceManager9);
 
   // Create DXVA2 Video Processor Service.
-  g_DXVA2CreateVideoService(pD3DDevice, IID_IDirectXVideoProcessorService, (void**)&m_pProcessService); 
+  g_DXVA2CreateVideoService(pD3DDevice, IID_IDirectXVideoProcessorService, reinterpret_cast<void**>(&m_pProcessService)); 
 
   // Activate L channel
   m_pS3DControl->SelectLeftView();
@@ -336,18 +335,18 @@ bool CIntelS3DDevice::OnSettingChanging(const CSetting *setting)
     return true;
 
   const std::string &settingId = setting->GetId();
-  return (settingId == "videoscreen.fakefullscreen" && m_inStereo) ? false : true;
+  return (settingId == "videoscreen.fakefullscreen" && m_stereoEnabled) ? false : true;
 }
 
 // Switch the monitor to 3D mode
 // Call with NULL to use current display mode
 bool CIntelS3DDevice::SwitchTo3D(S3D_DISPLAY_MODE *pMode)
 {
-  if (g_graphicsContext.IsFullScreenRoot() && !CSettings::Get().GetBool("videoscreen.fakefullscreen"))
+  /*if (g_graphicsContext.IsFullScreenRoot() && !CSettings::Get().GetBool("videoscreen.fakefullscreen"))
   {
     CSettings::Get().SetBool("videoscreen.fakefullscreen", true);
     m_restoreFFScreen = true;
-  }
+  }*/
 
   if (pMode)
   {
@@ -355,14 +354,12 @@ bool CIntelS3DDevice::SwitchTo3D(S3D_DISPLAY_MODE *pMode)
     return !FAILED(m_pS3DControl->SwitchTo3D(&mode));
   }
 
-  m_inStereo = !FAILED(m_pS3DControl->SwitchTo3D(&m_S3DPrefMode));
-
-  if (!m_inStereo)
-    CLog::Log(LOGWARNING, __FUNCTION__" - Switching to stereo 3D failed");
+  m_stereoEnabled = !FAILED(m_pS3DControl->SwitchTo3D(&m_S3DPrefMode));
+  CLog::Log(LOGWARNING, __FUNCTION__" - Switching to stereo 3D %s. ", m_stereoEnabled ? "success" : "failed");
 
   // if switch first time then d3d device need to be created in 3d mode.
   // after create d3d device in 3d it may be switching to 3d without recreate
-  return m_inStereo && m_initialized;
+  return m_stereoEnabled && m_initialized;
 }
 
 // Switch the monitor back to 2D mode
@@ -378,29 +375,34 @@ bool CIntelS3DDevice::SwitchTo2D(S3D_DISPLAY_MODE *pMode)
   else
     hr = m_pS3DControl->SwitchTo2D(NULL);
 
-  m_inStereo = false;
+  m_stereoEnabled = false;
 
   if (FAILED(hr))
+  {
     CLog::Log(LOGWARNING, __FUNCTION__" - Switching to 2D failed");
+    return false;
+  }
 
-  if (m_restoreFFScreen)
+  /*if (m_restoreFFScreen)
   {
     m_restoreFFScreen = false;
     CSettings::Get().SetBool("videoscreen.fakefullscreen", false);
-  }
+  }*/
 
-  return !FAILED(hr);
+  return true;
 }
     
 // Activate left view, requires device to be set
 bool CIntelS3DDevice::SelectLeftView()
 {
-  if (!m_inStereo || !m_initialized)
+  if (!m_stereoEnabled || !m_initialized)
     return false;
 
   // switch to fake render target
   if (FAILED(m_pD3DDevice->GetRenderTarget(0, &m_pRenderSurface)))
     return false;
+
+  m_pS3DControl->SelectLeftView();
 
   return !FAILED(m_pD3DDevice->SetRenderTarget(0, m_Sample.SrcSurface));
 }
@@ -408,17 +410,21 @@ bool CIntelS3DDevice::SelectLeftView()
 // Activates right view, requires device to be set
 bool CIntelS3DDevice::SelectRightView()
 {
-  if (!m_inStereo || !m_initialized)
+  if (!m_stereoEnabled || !m_initialized)
     return false;
 
   // channel L is complete, render it to result surface
-  return !FAILED(m_pProcessLeft->VideoProcessBlt(m_pRenderSurface, &m_BltParams, &m_Sample, 1, NULL));
+  m_pProcessLeft->VideoProcessBlt(m_pRenderSurface, &m_BltParams, &m_Sample, 1, NULL);
+
+  m_pS3DControl->SelectRightView();
+
+  return true;
 }
 
 // Activates right view, requires device to be set
 bool CIntelS3DDevice::PresentFrame()
 {
-  if (!m_inStereo || !m_initialized || m_pRenderSurface == NULL)
+  if (!m_stereoEnabled || !m_initialized || m_pRenderSurface == NULL)
     return false;
 
   // channel R is complete, render it and back true render traget
@@ -428,6 +434,8 @@ bool CIntelS3DDevice::PresentFrame()
   HRESULT hr = m_pD3DDevice->SetRenderTarget(0, m_pRenderSurface);
   m_pRenderSurface->Release();
   m_pRenderSurface = NULL;
+
+  m_pS3DControl->SelectLeftView();
 
   return !FAILED(hr);
 }
@@ -449,16 +457,16 @@ bool CIntelS3DDevice::Less(const IGFX_DISPLAY_MODE &l, const IGFX_DISPLAY_MODE& 
 
 bool CIntelS3DDevice::CheckOverlaySupport(int iWidth, int iHeight, D3DFORMAT dFormat)
 {
-  D3DCAPS9                      d3d9caps;
-  D3DOVERLAYCAPS                d3doverlaycaps = {0};
-  IDirect3D9ExOverlayExtension *d3d9overlay    = NULL;
+  D3DCAPS9 d3d9caps;
+  ZeroMemory(&d3d9caps, sizeof(d3d9caps));
 
-  bool overlaySupported = false;
+  D3DOVERLAYCAPS d3doverlaycaps = {0};
+  IDirect3D9ExOverlayExtension *d3d9overlay = NULL;
 
-  memset(&d3d9caps, 0, sizeof(d3d9caps));
+  bool overlaySupported;
 
-  if (FAILED(m_pD3D->GetDeviceCaps(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, &d3d9caps)) 
-  || !(d3d9caps.Caps & D3DCAPS_OVERLAY))
+  if ( FAILED(m_pD3D->GetDeviceCaps(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, &d3d9caps)) 
+    || !(d3d9caps.Caps & D3DCAPS_OVERLAY))
   {
     overlaySupported = false;            
   }
@@ -471,10 +479,7 @@ bool CIntelS3DDevice::CheckOverlaySupport(int iWidth, int iHeight, D3DFORMAT dFo
     else
     {
       HRESULT hr = d3d9overlay->CheckDeviceOverlayType(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL,
-                                                       iWidth,
-                                                       iHeight,
-                                                       dFormat, 
-                                                       NULL,
+                                                       iWidth, iHeight, dFormat, NULL,
                                                        D3DDISPLAYROTATION_IDENTITY, 
                                                        &d3doverlaycaps);
       overlaySupported = !FAILED(hr);

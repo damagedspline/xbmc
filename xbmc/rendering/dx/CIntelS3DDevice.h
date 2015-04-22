@@ -44,47 +44,47 @@ public:
  ~CIntelS3DDevice();
 
   // correct present params for correct stereo rendering some implementations need it
-  bool CorrectPresentParams(D3DPRESENT_PARAMETERS *pD3DPP);
+  bool CorrectPresentParams(D3DPRESENT_PARAMETERS *pD3DPP) override;
 
   // Returns true if S3D is supported by the platform and exposes supported display modes 
   // !! m.b. not needed
-  bool GetS3DCaps(S3D_CAPS *pCaps);
+  bool GetS3DCaps(S3D_CAPS *pCaps) override;
 
   // Switch the monitor to 3D mode
   // Call with NULL to use current display mode
-  bool SwitchTo3D(S3D_DISPLAY_MODE *pMode);
+  bool SwitchTo3D(S3D_DISPLAY_MODE *pMode) override;
 
   // Switch the monitor back to 2D mode
   // Call with NULL to use current display mode
-  bool SwitchTo2D(S3D_DISPLAY_MODE *pMode);
+  bool SwitchTo2D(S3D_DISPLAY_MODE *pMode) override;
     
   // Activate left view, requires device to be set
-  bool SelectLeftView(void);
+  bool SelectLeftView(void) override;
 
   // Activates right view, requires device to be set
-  bool SelectRightView(void);
+  bool SelectRightView(void) override;
 
   // 
-  bool PresentFrame(void);
+  bool PresentFrame(void) override;
 
-  void UnInit(void);
+  void UnInit(void) override;
 
-  void OnCreateDevice();
-  void OnDestroyDevice();
-  void OnLostDevice();
-  void OnResetDevice();
+  void OnCreateDevice() override;
+  void OnDestroyDevice() override;
+  void OnLostDevice() override;
+  void OnResetDevice() override;
 
-  bool OnSettingChanging(const CSetting *setting);
+  bool OnSettingChanging(const CSetting *setting) override;
+  bool UseWindowedMode() override { return true; }
 
 protected:
-  bool PreInit(void);
+  bool PreInit(void) override;
   bool Less(const IGFX_DISPLAY_MODE &l, const IGFX_DISPLAY_MODE& r);
   bool CheckOverlaySupport(int iWidth, int iHeight, D3DFORMAT dFormat);
 
   // various structures for S3D and DXVA2 calls
 
   bool                            m_restoreFFScreen;
-  bool                            m_inStereo;
   unsigned int                    m_resetToken;
 
   IDirect3DDevice9Ex*             m_pD3DDevice;

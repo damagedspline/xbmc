@@ -50,13 +50,14 @@ public:
   IS3DDevice(IDirect3D9Ex* pD3D) 
           :m_pD3D(NULL),
            m_initialized(false),
-           m_supported(false)
+           m_supported(false),
+           m_stereoEnabled(false)
   { 
     m_pD3D = pD3D; 
     pD3D->AddRef(); 
   }
 
-  ~IS3DDevice() { SAFE_RELEASE(m_pD3D); };
+  virtual ~IS3DDevice() { SAFE_RELEASE(m_pD3D); };
 
   // 
   virtual bool CorrectPresentParams(D3DPRESENT_PARAMETERS *pD3DPP) { return false; }
@@ -87,12 +88,17 @@ public:
 
   bool IsSupported() { return m_supported; }
 
+  bool IsStereoEnabled() { return m_stereoEnabled; }
+
+  virtual bool UseWindowedMode() { return false; }
+
 protected:
   // pre init device
   virtual bool PreInit() { return false; }
 
   bool                            m_initialized;
   bool                            m_supported;
+  bool                            m_stereoEnabled;
   IDirect3D9Ex*                   m_pD3D;
 };
 

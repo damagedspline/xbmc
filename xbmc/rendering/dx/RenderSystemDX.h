@@ -160,6 +160,7 @@ protected:
   DWORD                       m_defaultD3DUsage;
   D3DPOOL                     m_defaultD3DPool;
   bool                        m_useWindowedDX;
+  bool                        m_useWindowedDXOld;
   D3DADAPTER_IDENTIFIER9      m_AIdentifier;
 
   CCriticalSection            m_resourceSection;

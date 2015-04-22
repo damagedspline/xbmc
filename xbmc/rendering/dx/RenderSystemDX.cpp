@@ -185,14 +185,34 @@ bool CRenderSystemDX::ResetRenderSystem(int width, int height, bool fullScreen, 
 
   SetRenderParams(width, height, fullScreen, refreshRate);
 
-  CRect rc;
-  rc.SetRect(0, 0, (float)width, (float)height);
+  CRect rc(0, 0, float(width), float(height));
   SetViewPort(rc);
+
+  if (m_pS3DDevice->IsSupported())
+  {
+    RENDER_STEREO_MODE stereo_mode = g_graphicsContext.GetStereoMode();
+    if (stereo_mode == RENDER_STEREO_MODE_HARDWAREBASED && !m_pS3DDevice->IsStereoEnabled())
+    {
+      if (m_useWindowedDX != m_pS3DDevice->UseWindowedMode())
+      {
+        m_useWindowedDXOld = m_useWindowedDX;
+        m_useWindowedDX = m_pS3DDevice->UseWindowedMode();
+        BuildPresentParameters();
+        m_nDeviceStatus = reinterpret_cast<IDirect3DDevice9Ex*>(m_pD3DDevice)->ResetEx(&m_D3DPP, m_D3DPP.Windowed ? NULL : &m_D3DDMEX);
+      }
+      m_needNewDevice |= !m_pS3DDevice->SwitchTo3D(nullptr);
+    }
+    else if (stereo_mode != RENDER_STEREO_MODE_HARDWAREBASED && m_pS3DDevice->IsStereoEnabled())
+    {
+      m_needNewDevice |= !m_pS3DDevice->SwitchTo2D(nullptr);
+      m_useWindowedDX = m_useWindowedDXOld;
+    }
+  }
 
   if (m_useD3D9Ex && !m_needNewDevice)
   {
     BuildPresentParameters();
-    m_nDeviceStatus = ((IDirect3DDevice9Ex*)m_pD3DDevice)->ResetEx(&m_D3DPP, m_D3DPP.Windowed ? NULL : &m_D3DDMEX);
+    m_nDeviceStatus = reinterpret_cast<IDirect3DDevice9Ex*>(m_pD3DDevice)->ResetEx(&m_D3DPP, m_D3DPP.Windowed ? NULL : &m_D3DDMEX);
   }
   else
   {
@@ -267,7 +287,7 @@ void CRenderSystemDX::BuildPresentParameters()
   ZeroMemory( &m_D3DPP, sizeof(D3DPRESENT_PARAMETERS) );
   m_D3DPP.Windowed           = m_useWindowedDX;
   m_D3DPP.SwapEffect         = D3DSWAPEFFECT_FLIP;
-  m_D3DPP.BackBufferCount    = 1;
+  m_D3DPP.BackBufferCount    = 2;
 
   if(m_useD3D9Ex && (osvi.dwMajorVersion == 6 && osvi.dwMinorVersion >= 1 || osvi.dwMajorVersion > 6))
   {
@@ -375,7 +395,7 @@ void CRenderSystemDX::OnDeviceReset()
     BuildPresentParameters();
 
     if (m_useD3D9Ex)
-      m_nDeviceStatus = ((IDirect3DDevice9Ex*)m_pD3DDevice)->ResetEx(&m_D3DPP, m_D3DPP.Windowed ? NULL : &m_D3DDMEX);
+      m_nDeviceStatus = reinterpret_cast<IDirect3DDevice9Ex*>(m_pD3DDevice)->ResetEx(&m_D3DPP, m_D3DPP.Windowed ? NULL : &m_D3DDMEX);
     else
       m_nDeviceStatus = m_pD3DDevice->Reset(&m_D3DPP);
   }
@@ -436,25 +456,25 @@ bool CRenderSystemDX::CreateDevice()
 
   if (m_useD3D9Ex)
   {
-    hr = ((IDirect3D9Ex*)m_pD3D)->CreateDeviceEx(m_adapter, m_devType, m_hFocusWnd,
-      VertexProcessingFlags | D3DCREATE_MULTITHREADED, &m_D3DPP, m_D3DPP.Windowed ? NULL : &m_D3DDMEX, (IDirect3DDevice9Ex**)&m_pD3DDevice );
+    hr = reinterpret_cast<IDirect3D9Ex*>(m_pD3D)->CreateDeviceEx( m_adapter, m_devType, m_hFocusWnd,
+      VertexProcessingFlags | D3DCREATE_MULTITHREADED, &m_D3DPP, m_D3DPP.Windowed ? NULL : &m_D3DDMEX, reinterpret_cast<IDirect3DDevice9Ex**>(&m_pD3DDevice) );
     if (FAILED(hr))
     {
       CLog::Log(LOGWARNING, __FUNCTION__" - initial wanted device config failed");
       // Try a second time, may fail the first time due to back buffer count,
       // which will be corrected down to 1 by the runtime
-      hr = ((IDirect3D9Ex*)m_pD3D)->CreateDeviceEx( m_adapter, m_devType, m_hFocusWnd,
-        VertexProcessingFlags | D3DCREATE_MULTITHREADED, &m_D3DPP, m_D3DPP.Windowed ? NULL : &m_D3DDMEX, (IDirect3DDevice9Ex**)&m_pD3DDevice );
+      hr = reinterpret_cast<IDirect3D9Ex*>(m_pD3D)->CreateDeviceEx( m_adapter, m_devType, m_hFocusWnd,
+        VertexProcessingFlags | D3DCREATE_MULTITHREADED, &m_D3DPP, m_D3DPP.Windowed ? NULL : &m_D3DDMEX, reinterpret_cast<IDirect3DDevice9Ex**>(&m_pD3DDevice) );
       if( FAILED( hr ) )
       {
         CLog::Log(LOGERROR, __FUNCTION__" - unable to create a device. %s", GetErrorDescription(hr).c_str());
-        if (m_stereoMode == RENDER_STEREO_MODE_HARDWAREBASED)
+        if (g_graphicsContext.GetStereoMode() == RENDER_STEREO_MODE_HARDWAREBASED)
           m_pS3DDevice->SwitchTo2D(NULL);
         return false;
       }
     }
     // Not sure the following actually does something
-    ((IDirect3DDevice9Ex*)m_pD3DDevice)->SetGPUThreadPriority(7);
+    reinterpret_cast<IDirect3DDevice9Ex*>(m_pD3DDevice)->SetGPUThreadPriority(7);
   }
   else
   {
@@ -570,6 +590,7 @@ bool CRenderSystemDX::CreateDevice()
 
   m_pD3DDevice->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR );
   m_pD3DDevice->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR );
+  m_pD3DDevice->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR );
 
   m_bRenderCreated = true;
   m_needNewDevice = false;
@@ -591,7 +612,7 @@ bool CRenderSystemDX::PresentRenderImpl(const CDirtyRegionList &dirty)
   if(m_nDeviceStatus != S_OK)
     return false;
 
-  if (m_stereoMode == RENDER_STEREO_MODE_HARDWAREBASED)
+  if (m_stereoMode == RENDER_STEREO_MODE_HARDWAREBASED && m_pS3DDevice->IsStereoEnabled())
     m_pS3DDevice->PresentFrame();
 
   //CVideoReferenceClock polls GetRasterStatus too,
@@ -768,15 +789,7 @@ bool CRenderSystemDX::ClearBuffers(color_t color)
       return true;
   }
 
-  return SUCCEEDED(m_pD3DDevice->Clear(
-    0,
-    NULL,
-    D3DCLEAR_TARGET,
-    color,
-    1.0,
-    0 ) );
-
-  return true;
+  return SUCCEEDED(m_pD3DDevice->Clear( 0, NULL, D3DCLEAR_TARGET, color, 1.0, 0 ));
 }
 
 bool CRenderSystemDX::IsExtSupported(const char* extension)
@@ -1032,9 +1045,6 @@ std::string CRenderSystemDX::GetErrorDescription(HRESULT hr)
 
 void CRenderSystemDX::SetStereoMode(RENDER_STEREO_MODE mode, RENDER_STEREO_VIEW view)
 {
-  RENDER_STEREO_MODE prevMode = m_stereoMode;
-  RENDER_STEREO_VIEW prevView = m_stereoView;
-
   CRenderSystemBase::SetStereoMode(mode, view);
 
   m_pD3DDevice->SetRenderState( D3DRS_COLORWRITEENABLE, D3DCOLORWRITEENABLE_ALPHA | D3DCOLORWRITEENABLE_RED | D3DCOLORWRITEENABLE_BLUE | D3DCOLORWRITEENABLE_GREEN);
@@ -1061,37 +1071,10 @@ void CRenderSystemDX::SetStereoMode(RENDER_STEREO_MODE mode, RENDER_STEREO_VIEW 
   }
   if (m_stereoMode == RENDER_STEREO_MODE_HARDWAREBASED)
   {
-    if (prevMode != RENDER_STEREO_MODE_HARDWAREBASED)
-    {
-      CSingleLock lock(g_graphicsContext);
-
-      if (!m_pS3DDevice->SwitchTo3D(NULL))
-      {
-        // need new device
-        m_needNewDevice = true;
-        ResetRenderSystem(m_nBackBufferWidth, m_nBackBufferHeight, m_bFullScreenDevice, m_refreshRate);
-      }
-    }
-
-    if (prevView != m_stereoView)
-    {
-      if (m_stereoView == RENDER_STEREO_VIEW_LEFT)
-      {
-        m_pS3DDevice->SelectLeftView();
-      }
-      else if (m_stereoView == RENDER_STEREO_VIEW_RIGHT)
-      {
-        m_pS3DDevice->SelectRightView();
-      }
-    }
-  }
-  else if (prevMode == RENDER_STEREO_MODE_HARDWAREBASED)
-  {
-    CSingleLock lock(g_graphicsContext);
-
-    // switch back to 2d
-    if (!m_pS3DDevice->SwitchTo2D(NULL))
-      ResetRenderSystem(m_nBackBufferWidth, m_nBackBufferHeight, m_bFullScreenDevice, m_refreshRate);
+    if (m_stereoView == RENDER_STEREO_VIEW_LEFT)
+      m_pS3DDevice->SelectLeftView();
+    else if (m_stereoView == RENDER_STEREO_VIEW_RIGHT)
+      m_pS3DDevice->SelectRightView();
   }
 }
 
