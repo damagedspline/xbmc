@@ -39,9 +39,4 @@ protected:
 
 private:
   CGUIImage* m_image;
-#ifdef HAS_DX
-  D3DGAMMARAMP newRamp;
-  D3DGAMMARAMP oldRamp;
-
-#endif
 };
