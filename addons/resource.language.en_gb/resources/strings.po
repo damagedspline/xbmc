@@ -12208,11 +12208,6 @@ msgid "Show video files in listings"
 msgstr ""
 
 #: xbmc/windows/GUIWindowSystemInfo.cpp
-msgctxt "#22023"
-msgid "DirectX vendor:"
-msgstr ""
-
-#: xbmc/windows/GUIWindowSystemInfo.cpp
 msgctxt "#22024"
 msgid "Direct3D version:"
 msgstr ""
