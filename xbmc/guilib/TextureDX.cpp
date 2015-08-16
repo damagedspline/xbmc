@@ -85,7 +85,7 @@ void CDXTexture::LoadToGPU()
 
   D3D11_USAGE usage = g_Windowing.DefaultD3DUsage();
   if (m_format == XB_FMT_RGB8 && usage == D3D11_USAGE_DEFAULT)
-    usage = D3D11_USAGE_DYNAMIC; // force switch to dynamic to allow CPU write to texture
+    usage = D3D11_USAGE_DYNAMIC; // fallback to dynamic to allow CPU write to texture
 
   if (m_texture.Get() == nullptr)
   {
@@ -94,30 +94,52 @@ void CDXTexture::LoadToGPU()
     {
       // this is faster way to create texture with initial data instead of create empty and then copy to it
       m_texture.Create(m_textureWidth, m_textureHeight, 1, usage, GetFormat(), m_pixels, GetPitch());
+      if (m_texture.Get() != nullptr)
+        return;
     }
     else
       m_texture.Create(m_textureWidth, m_textureHeight, 1, usage, GetFormat());
 
     if (m_texture.Get() == nullptr)
     {
-      CLog::Log(LOGDEBUG, "CDXTexture::CDXTexture: Error creating new texture for size %d x %d", m_textureWidth, m_textureHeight);
+      CLog::Log(LOGDEBUG, "CDXTexture::CDXTexture: Error creating new texture for size %d x %d.", m_textureWidth, m_textureHeight);
+      return;
+    }
+  }
+  else
+  {
+    // need to update texture, check usage first
+    D3D11_TEXTURE2D_DESC texDesc;
+    m_texture.GetDesc(&texDesc);
+    usage = texDesc.Usage;
+
+    // if usage is not dynamic re-create texture with dynamic usage for future updates
+    if (usage != D3D11_USAGE_DYNAMIC && usage != D3D11_USAGE_STAGING)
+    {
+      m_texture.Release();
+      usage = D3D11_USAGE_DYNAMIC;
+
+      m_texture.Create(m_textureWidth, m_textureHeight, 1, usage, GetFormat(), m_pixels, GetPitch());
+      if (m_texture.Get() == nullptr)
+        CLog::Log(LOGDEBUG, "CDXTexture::CDXTexture: Error creating new texture for size %d x %d.", m_textureWidth, m_textureHeight);
+
       return;
     }
   }
 
-  if (m_format == XB_FMT_RGB8 && (usage == D3D11_USAGE_DYNAMIC || usage == D3D11_USAGE_STAGING))
+  D3D11_MAP mapType = (usage == D3D11_USAGE_STAGING) ? D3D11_MAP_WRITE : D3D11_MAP_WRITE_DISCARD;
+  D3D11_MAPPED_SUBRESOURCE lr;
+  if (m_texture.LockRect(0, &lr, mapType))
   {
-    D3D11_MAP mapType = (usage == D3D11_USAGE_STAGING) ? D3D11_MAP_WRITE : D3D11_MAP_WRITE_DISCARD;
-    D3D11_MAPPED_SUBRESOURCE lr;
-    if (m_texture.LockRect(0, &lr, mapType))
-    {
-      unsigned char *dst = (unsigned char *)lr.pData;
-      unsigned char *src = m_pixels;
-      unsigned int dstPitch = lr.RowPitch;
-      unsigned int srcPitch = GetPitch();
-      unsigned int minPitch = std::min(srcPitch, dstPitch);
+    unsigned char *dst = (unsigned char *)lr.pData;
+    unsigned char *src = m_pixels;
+    unsigned int dstPitch = lr.RowPitch;
+    unsigned int srcPitch = GetPitch();
+    unsigned int minPitch = std::min(srcPitch, dstPitch);
 
-      unsigned int rows = GetRows();
+    unsigned int rows = GetRows();
+    if (m_format == XB_FMT_RGB8)
+    {
       for (unsigned int y = 0; y < rows; y++)
       {
         unsigned char *dst2 = dst;
@@ -133,15 +155,29 @@ void CDXTexture::LoadToGPU()
         dst += dstPitch;
       }
     }
+    else if (srcPitch == dstPitch)
+    {
+      memcpy(dst, src, srcPitch * rows);
+    }
     else
     {
-      CLog::Log(LOGERROR, __FUNCTION__" - failed to lock texture");
+      for (unsigned int y = 0; y < rows; y++)
+      {
+        memcpy(dst, src, minPitch);
+        src += srcPitch;
+        dst += dstPitch;
+      }
     }
-    m_texture.UnlockRect(0);
   }
+  else
+  {
+    CLog::Log(LOGERROR, __FUNCTION__" - failed to lock texture.");
+  }
+  m_texture.UnlockRect(0);
 
   delete [] m_pixels;
   m_pixels = nullptr;
+
   m_loadedToGPU = true;
 }
 
