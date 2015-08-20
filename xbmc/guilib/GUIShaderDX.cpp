@@ -22,6 +22,8 @@
 #include <d3dcompiler.h>
 #include "GUIShaderDX.h"
 #include "guilib/GraphicContext.h"
+#include "settings/lib/Setting.h"
+#include "settings/Settings.h"
 #include "utils/log.h"
 #include "windowing/WindowingFactory.h"
 
@@ -112,8 +114,12 @@ bool CGUIShaderDX::Initialize()
       m_pixelShader[j].Release();
   }
 
-  if (!CreateBuffers() || !CreateSamplers())
+  if (!bSuccess || !CreateBuffers() || !CreateSamplers())
     return false;
+
+  CSettings::GetInstance().RegisterCallback(this, {
+    "videoscreen.limitedrange"
+  });
 
   m_bCreated = true;
   return true;
@@ -132,7 +138,8 @@ bool CGUIShaderDX::CreateBuffers()
   }
 
   // Create the constant buffer for WVP
-  CD3D11_BUFFER_DESC cbbd(sizeof(XMMATRIX), D3D11_BIND_CONSTANT_BUFFER, D3D11_USAGE_DYNAMIC, D3D11_CPU_ACCESS_WRITE); // it can change very frequently
+  size_t buffSize = (sizeof(cbWorld) + 15) & ~15;
+  CD3D11_BUFFER_DESC cbbd(buffSize, D3D11_BIND_CONSTANT_BUFFER, D3D11_USAGE_DYNAMIC, D3D11_CPU_ACCESS_WRITE); // it can change very frequently
   if (FAILED(pDevice->CreateBuffer(&cbbd, NULL, &m_pWVPBuffer)))
   {
     CLog::Log(LOGERROR, __FUNCTION__ " - Failed to create the constant buffer.");
@@ -195,7 +202,8 @@ void CGUIShaderDX::ApplyStateBlock(void)
   pContext->VSSetConstantBuffers(0, 1, &m_pWVPBuffer);
 
   m_pixelShader[m_currentShader].BindShader();
-  pContext->PSSetConstantBuffers(0, 1, &m_pVPBuffer);
+  pContext->PSSetConstantBuffers(0, 1, &m_pWVPBuffer);
+  pContext->PSSetConstantBuffers(1, 1, &m_pVPBuffer);
 
   ID3D11SamplerState* samplers[] = { m_pSampLinear, m_pSampPoint };
   pContext->PSSetSamplers(0, ARRAYSIZE(samplers), samplers);
@@ -285,6 +293,7 @@ void CGUIShaderDX::Release()
   SAFE_RELEASE(m_pVPBuffer);
   SAFE_RELEASE(m_pSampLinear);
   SAFE_RELEASE(m_pSampPoint);
+  CSettings::GetInstance().UnregisterCallback(this);
   m_bCreated = false;
 }
 
@@ -347,7 +356,11 @@ void CGUIShaderDX::ApplyChanges(void)
       XMMATRIX worldView = XMMatrixMultiply(m_cbWorldViewProj.world, m_cbWorldViewProj.view);
       XMMATRIX worldViewProj = XMMatrixTranspose(XMMatrixMultiply(worldView, m_cbWorldViewProj.projection));
 
-      *(XMMATRIX*)res.pData = worldViewProj;
+      cbWorld* buffer = (cbWorld*)res.pData;
+      buffer->wvp = worldViewProj;
+      buffer->blackLevel = (g_Windowing.UseLimitedColor() ? 16.f : 0.f) / 255.f;
+      buffer->whiteLevel = (g_Windowing.UseLimitedColor() ? 235.f : 255.f) / 255.f;
+
       pContext->Unmap(m_pWVPBuffer, 0);
       m_bIsWVPDirty = false;
     }
@@ -430,6 +443,18 @@ void CGUIShaderDX::ClipToScissorParams(void)
     m_clipXOffset = m_clipXOffset * xMult + (viewPort.x2 + viewPort.x1) / 2;
     m_clipYFactor = m_clipYFactor * yMult;
     m_clipYOffset = m_clipYOffset * yMult + (viewPort.y2 + viewPort.y1) / 2;
+  }
+}
+
+void CGUIShaderDX::OnSettingChanged(const CSetting *setting)
+{
+  if (setting == NULL)
+    return;
+
+  const std::string &settingId = setting->GetId();
+  if (settingId == "videoscreen.limitedrange")
+  {
+    m_bIsWVPDirty = true;
   }
 }
 

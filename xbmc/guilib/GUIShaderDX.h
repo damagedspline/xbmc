@@ -25,6 +25,7 @@
 #include "Texture.h"
 #include "D3DResource.h"
 #include <DirectXMath.h>
+#include "settings/lib/ISettingCallback.h"
 
 using namespace DirectX;
 
@@ -45,7 +46,7 @@ struct Vertex {
 
 class ID3DResource;
 
-class CGUIShaderDX
+class CGUIShaderDX : public ISettingCallback
 {
 public:
   CGUIShaderDX();
@@ -79,6 +80,8 @@ public:
   float GetClipYFactor(void)         { return m_clipYFactor;  }
   float GetClipYOffset(void)         { return m_clipYOffset;  }
 
+  virtual void OnSettingChanged(const CSetting *setting);
+
   // need to use aligned allocation bacause we use XMMATRIX in structures.
   static void* operator new (size_t size)
   {
@@ -106,6 +109,12 @@ private:
     float TopLeftY;
     float Width;
     float Height;
+  };
+  struct cbWorld
+  {
+    XMMATRIX wvp;
+    float blackLevel;
+    float whiteLevel;
   };
 
   void Release(void);
