@@ -117,7 +117,7 @@ bool CGUIShaderDX::Initialize()
   if (!bSuccess || !CreateBuffers() || !CreateSamplers())
     return false;
 
-  CSettings::GetInstance().RegisterCallback(this, {
+  CSettings::Get().RegisterCallback(this, {
     "videoscreen.limitedrange"
   });
 
@@ -293,7 +293,7 @@ void CGUIShaderDX::Release()
   SAFE_RELEASE(m_pVPBuffer);
   SAFE_RELEASE(m_pSampLinear);
   SAFE_RELEASE(m_pSampPoint);
-  CSettings::GetInstance().UnregisterCallback(this);
+  CSettings::Get().UnregisterCallback(this);
   m_bCreated = false;
 }
 
