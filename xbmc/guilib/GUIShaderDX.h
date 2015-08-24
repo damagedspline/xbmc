@@ -46,7 +46,7 @@ struct Vertex {
 
 class ID3DResource;
 
-class CGUIShaderDX : public ISettingCallback
+class CGUIShaderDX
 {
 public:
   CGUIShaderDX();
@@ -80,8 +80,6 @@ public:
   float GetClipYFactor(void)         { return m_clipYFactor;  }
   float GetClipYOffset(void)         { return m_clipYOffset;  }
 
-  virtual void OnSettingChanged(const CSetting *setting);
-
   // need to use aligned allocation bacause we use XMMATRIX in structures.
   static void* operator new (size_t size)
   {
@@ -114,7 +112,7 @@ private:
   {
     XMMATRIX wvp;
     float blackLevel;
-    float whiteLevel;
+    float colorRange;
   };
 
   void Release(void);

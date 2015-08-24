@@ -117,10 +117,6 @@ bool CGUIShaderDX::Initialize()
   if (!bSuccess || !CreateBuffers() || !CreateSamplers())
     return false;
 
-  CSettings::Get().RegisterCallback(this, {
-    "videoscreen.limitedrange"
-  });
-
   m_bCreated = true;
   return true;
 }
@@ -293,7 +289,6 @@ void CGUIShaderDX::Release()
   SAFE_RELEASE(m_pVPBuffer);
   SAFE_RELEASE(m_pSampLinear);
   SAFE_RELEASE(m_pSampPoint);
-  CSettings::Get().UnregisterCallback(this);
   m_bCreated = false;
 }
 
@@ -354,12 +349,12 @@ void CGUIShaderDX::ApplyChanges(void)
     if (SUCCEEDED(pContext->Map(m_pWVPBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &res)))
     {
       XMMATRIX worldView = XMMatrixMultiply(m_cbWorldViewProj.world, m_cbWorldViewProj.view);
-      XMMATRIX worldViewProj = XMMatrixTranspose(XMMatrixMultiply(worldView, m_cbWorldViewProj.projection));
+      XMMATRIX worldViewProj = XMMatrixMultiplyTranspose(worldView, m_cbWorldViewProj.projection);
 
       cbWorld* buffer = (cbWorld*)res.pData;
       buffer->wvp = worldViewProj;
-      buffer->blackLevel = (g_Windowing.UseLimitedColor() ? 16.f : 0.f) / 255.f;
-      buffer->whiteLevel = (g_Windowing.UseLimitedColor() ? 235.f : 255.f) / 255.f;
+      buffer->blackLevel = (g_Windowing.UseLimitedColor() ? 16.f / 255.f : 0.f);
+      buffer->colorRange = (g_Windowing.UseLimitedColor() ? (235.f - 16.f) / 255.f : 1.0f);
 
       pContext->Unmap(m_pWVPBuffer, 0);
       m_bIsWVPDirty = false;
@@ -443,18 +438,6 @@ void CGUIShaderDX::ClipToScissorParams(void)
     m_clipXOffset = m_clipXOffset * xMult + (viewPort.x2 + viewPort.x1) / 2;
     m_clipYFactor = m_clipYFactor * yMult;
     m_clipYOffset = m_clipYOffset * yMult + (viewPort.y2 + viewPort.y1) / 2;
-  }
-}
-
-void CGUIShaderDX::OnSettingChanged(const CSetting *setting)
-{
-  if (setting == NULL)
-    return;
-
-  const std::string &settingId = setting->GetId();
-  if (settingId == "videoscreen.limitedrange")
-  {
-    m_bIsWVPDirty = true;
   }
 }
 
