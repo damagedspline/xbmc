@@ -83,6 +83,7 @@ void CDXTexture::LoadToGPU()
     return;
   }
 
+  bool needUpdate = true;
   D3D11_USAGE usage = g_Windowing.DefaultD3DUsage();
   if (m_format == XB_FMT_RGB8 && usage == D3D11_USAGE_DEFAULT)
     usage = D3D11_USAGE_DYNAMIC; // fallback to dynamic to allow CPU write to texture
@@ -95,7 +96,7 @@ void CDXTexture::LoadToGPU()
       // this is faster way to create texture with initial data instead of create empty and then copy to it
       m_texture.Create(m_textureWidth, m_textureHeight, 1, usage, GetFormat(), m_pixels, GetPitch());
       if (m_texture.Get() != nullptr)
-        return;
+        needUpdate = false;
     }
     else
       m_texture.Create(m_textureWidth, m_textureHeight, 1, usage, GetFormat());
@@ -123,58 +124,58 @@ void CDXTexture::LoadToGPU()
       if (m_texture.Get() == nullptr)
         CLog::Log(LOGDEBUG, "CDXTexture::CDXTexture: Error creating new texture for size %d x %d.", m_textureWidth, m_textureHeight);
 
-      return;
+      needUpdate = false;
     }
   }
 
-  D3D11_MAP mapType = (usage == D3D11_USAGE_STAGING) ? D3D11_MAP_WRITE : D3D11_MAP_WRITE_DISCARD;
-  D3D11_MAPPED_SUBRESOURCE lr;
-  if (m_texture.LockRect(0, &lr, mapType))
+  if (needUpdate)
   {
-    unsigned char *dst = (unsigned char *)lr.pData;
-    unsigned char *src = m_pixels;
-    unsigned int dstPitch = lr.RowPitch;
-    unsigned int srcPitch = GetPitch();
-    unsigned int minPitch = std::min(srcPitch, dstPitch);
+    D3D11_MAP mapType = (usage == D3D11_USAGE_STAGING) ? D3D11_MAP_WRITE : D3D11_MAP_WRITE_DISCARD;
+    D3D11_MAPPED_SUBRESOURCE lr;
+    if (m_texture.LockRect(0, &lr, mapType))
+    {
+      unsigned char *dst = (unsigned char *)lr.pData;
+      unsigned char *src = m_pixels;
+      unsigned int dstPitch = lr.RowPitch;
+      unsigned int srcPitch = GetPitch();
+      unsigned int minPitch = std::min(srcPitch, dstPitch);
 
-    unsigned int rows = GetRows();
-    if (m_format == XB_FMT_RGB8)
-    {
-      for (unsigned int y = 0; y < rows; y++)
+      unsigned int rows = GetRows();
+      if (m_format == XB_FMT_RGB8)
       {
-        unsigned char *dst2 = dst;
-        unsigned char *src2 = src;
-        for (unsigned int x = 0; x < srcPitch / 3; x++, dst2 += 4, src2 += 3)
+        for (unsigned int y = 0; y < rows; y++)
         {
-          dst2[0] = src2[2];
-          dst2[1] = src2[1];
-          dst2[2] = src2[0];
-          dst2[3] = 0xff;
+          unsigned char *dst2 = dst;
+          unsigned char *src2 = src;
+          for (unsigned int x = 0; x < srcPitch / 3; x++, dst2 += 4, src2 += 3)
+          {
+            dst2[0] = src2[2];
+            dst2[1] = src2[1];
+            dst2[2] = src2[0];
+            dst2[3] = 0xff;
+          }
+          src += srcPitch;
+          dst += dstPitch;
         }
-        src += srcPitch;
-        dst += dstPitch;
       }
-    }
-    else if (srcPitch == dstPitch)
-    {
-      memcpy(dst, src, srcPitch * rows);
+      else if (srcPitch == dstPitch)
+      {
+        memcpy(dst, src, srcPitch * rows);
+      }
+      else
+      {
+        for (unsigned int y = 0; y < rows; y++)
+        {
+          memcpy(dst, src, minPitch);
+          src += srcPitch;
+          dst += dstPitch;
+        }
+      }
+      m_texture.UnlockRect(0);
     }
     else
-    {
-      for (unsigned int y = 0; y < rows; y++)
-      {
-        memcpy(dst, src, minPitch);
-        src += srcPitch;
-        dst += dstPitch;
-      }
-    }
+      CLog::Log(LOGERROR, __FUNCTION__" - failed to lock texture.");
   }
-  else
-  {
-    CLog::Log(LOGERROR, __FUNCTION__" - failed to lock texture.");
-  }
-  m_texture.UnlockRect(0);
-
   delete [] m_pixels;
   m_pixels = nullptr;
 
