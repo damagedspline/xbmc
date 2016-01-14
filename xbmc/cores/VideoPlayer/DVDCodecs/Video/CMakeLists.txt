@@ -28,6 +28,8 @@ endif()
 if(CORE_SYSTEM_NAME STREQUAL windows)
   list(APPEND SOURCES DXVA.cpp)
   list(APPEND HEADERS DXVA.h)
+  list(APPEND SOURCES MFXCodec.cpp)
+  list(APPEND HEADERS MFXCodec.h)
 endif()
 
 if(VDPAU_FOUND)
