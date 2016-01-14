@@ -35,6 +35,7 @@
 #include "utils/SystemInfo.h"
 #endif
 #include "Video/DVDVideoCodecFFmpeg.h"
+#include "Video/DVDVideoCodecMFX.h"
 #include "Video/DVDVideoCodecOpenMax.h"
 #include "Video/DVDVideoCodecLibMpeg2.h"
 #if defined(HAS_IMXVPU)
@@ -338,6 +339,11 @@ CDVDVideoCodec* CDVDFactoryCodec::CreateVideoCodec(CDVDStreamInfo &hint, const C
     }
 #endif
 
+    if (!hint.software && CSettings::GetInstance().GetBool("videoplayer.supportmvc"))
+    {
+      if (hint.codec == AV_CODEC_ID_H264 && hint.codec_tag == MKTAG('M', 'V', 'C', ' '))
+        if ( (pCodec = OpenCodec(new CDVDVideoCodecMFX(), hint, options)) ) return pCodec;
+    }
 
   // try to decide if we want to try halfres decoding
 #if !defined(TARGET_POSIX) && !defined(TARGET_WINDOWS)
