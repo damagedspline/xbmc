@@ -3283,6 +3283,9 @@
     <ClCompile Include="..\..\xbmc\cores\VideoPlayer\Process\ProcessInfo.cpp">
       <Filter>cores\Process</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\xbmc\cores\VideoPlayer\DVDCodecs\Video\DVDVideoCodecMFX.cpp">
+      <Filter>cores\VideoPlayer\DVDCodecs\Video</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\xbmc\win32\pch.h">
@@ -6313,6 +6316,9 @@
     </ClInclude>
     <ClInclude Include="..\..\xbmc\cores\VideoPlayer\Process\ProcessInfo.h">
       <Filter>cores\Process</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\xbmc\cores\VideoPlayer\DVDCodecs\Video\DVDVideoCodecMFX.h">
+      <Filter>cores\VideoPlayer\DVDCodecs\Video</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -51,7 +51,7 @@ class CDVDMediaCodecInfo;
 class CDVDVideoCodecIMXBuffer;
 class CMMALVideoBuffer;
 class CDVDAmlogicInfo;
-
+class CMVCPicture;
 
 // should be entirely filled by all codecs
 struct DVDVideoPicture
@@ -67,6 +67,9 @@ struct DVDVideoPicture
     };
     struct {
       DXVA::CRenderPicture* dxva;
+    };
+    struct {
+      CMVCPicture* mvc;
     };
     struct {
       VDPAU::CVdpauRenderPicture* vdpau;
