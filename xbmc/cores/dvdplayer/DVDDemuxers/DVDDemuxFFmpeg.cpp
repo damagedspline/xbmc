@@ -21,6 +21,7 @@
 #include "DVDDemuxFFmpeg.h"
 
 #include <utility>
+#include <assert.h>
 
 #include "commons/Exception.h"
 #include "cores/FFmpeg.h"
@@ -53,6 +54,7 @@
 #endif
 
 extern "C" {
+#include "libavutil/intreadwrite.h"
 #include "libavutil/opt.h"
 }
 
@@ -481,7 +483,7 @@ bool CDVDDemuxFFmpeg::Open(CDVDInputStream* pInput, bool streaminfo, bool filein
     if (m_checkvideo)
     {
       // make sure we start video with an i-frame
-      ResetVideoStreams();
+      //ResetVideoStreams();
     }
   }
   else
@@ -1107,6 +1109,25 @@ void CDVDDemuxFFmpeg::DisposeStreams()
   m_stream_index.clear();
 }
 
+static bool h264_is_annexb(std::string format, AVStream *avstream)
+{
+  assert(avstream->codec->codec_id == AV_CODEC_ID_H264 || avstream->codec->codec_id == AV_CODEC_ID_H264_MVC);
+  if (avstream->codec->extradata_size < 4)
+    return true;
+  if (avstream->codec->extradata[0] == 1)
+    return false;
+  if (format == "avi") 
+  {
+    BYTE *src = avstream->codec->extradata;
+    unsigned startcode = AV_RB32(src);
+    if (startcode == 0x00000001 || (startcode & 0xffffff00) == 0x00000100)
+      return true;
+    if (avstream->codec->codec_tag == MKTAG('A', 'V', 'C', '1') || avstream->codec->codec_tag == MKTAG('a', 'v', 'c', '1'))
+      return false;
+  }
+  return true;
+}
+
 CDemuxStream* CDVDDemuxFFmpeg::AddStream(int iId)
 {
   AVStream* pStream = m_pFormatContext->streams[iId];
@@ -1135,6 +1156,15 @@ CDemuxStream* CDVDDemuxFFmpeg::AddStream(int iId)
       }
     case AVMEDIA_TYPE_VIDEO:
       {
+        if (pStream->codec->codec_id == AV_CODEC_ID_H264_MVC)
+        {
+          // ignore MVC extension streams, they are handled specially
+          stream = new CDemuxStream();
+          stream->type = STREAM_DATA;
+          stream->disabled = true;
+          pStream->need_parsing = AVSTREAM_PARSE_NONE;
+          break;
+        }
         CDemuxStreamVideoFFmpeg* st = new CDemuxStreamVideoFFmpeg(this, pStream);
         stream = st;
         if(strcmp(m_pFormatContext->iformat->name, "flv") == 0)
@@ -1143,7 +1173,7 @@ CDemuxStream* CDVDDemuxFFmpeg::AddStream(int iId)
           st->bVFR = false;
 
         // never trust pts in avi files with h264.
-        if (m_bAVI && pStream->codec->codec_id == AV_CODEC_ID_H264)
+        if (m_bAVI && (pStream->codec->codec_id == AV_CODEC_ID_H264 || pStream->codec->codec_id == AV_CODEC_ID_H264_MVC))
           st->bPTSInvalid = true;
 
 #if defined(AVFORMAT_HAS_STREAM_GET_R_FRAME_RATE)
@@ -1220,6 +1250,40 @@ CDemuxStream* CDVDDemuxFFmpeg::AddStream(int iId)
               pStream->codec->codec_id = AV_CODEC_ID_MPEG2VIDEO;
               pStream->codec->codec_tag = MKTAG('M','P','2','V');
               CLog::Log(LOGERROR, "%s - AV_CODEC_ID_PROBE detected, forcing AV_CODEC_ID_MPEG2VIDEO", __FUNCTION__);
+            }
+          }
+        }
+        if (pStream->codec->codec_id == AV_CODEC_ID_H264)
+        {
+          if (h264_is_annexb(m_pFormatContext->iformat->name, pStream))
+          {
+            // TODO
+          }
+          else
+          {
+            // try to find "mvcC" atom
+            uint32_t state = -1;
+            uint8_t* extradata = pStream->codec->extradata;
+            int extradata_size = pStream->codec->extradata_size;
+
+            int i = 0;
+            for (; i < extradata_size; i++)
+            {
+              state = (state << 8) | extradata[i];
+              if (state == MKBETAG('m', 'v', 'c', 'C'))
+                break;
+            }
+            if (i >= 8 && i < extradata_size)
+            {
+              // Update pointers to the start of the mvcC atom
+              extradata = extradata + i - 7;
+              extradata_size = extradata_size - i + 7;
+              // verify size atom and actual size
+              if (extradata_size >= 14 && (AV_RB32(extradata) + 4) <= extradata_size)
+              {
+                // mvcC is found change codec tag
+                pStream->codec->codec_tag = MKTAG('M', 'V', 'C', ' ');
+              }
             }
           }
         }
