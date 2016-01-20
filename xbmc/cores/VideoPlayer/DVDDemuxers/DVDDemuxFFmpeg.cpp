@@ -24,6 +24,7 @@
 
 #include "commons/Exception.h"
 #include "cores/FFmpeg.h"
+#include "DVDCodecs/DVDCodecUtils.h"
 #include "DVDClock.h" // for DVD_TIME_BASE
 #include "DVDDemuxUtils.h"
 #include "DVDInputStreams/DVDInputStream.h"
@@ -1154,6 +1155,15 @@ CDemuxStream* CDVDDemuxFFmpeg::AddStream(int iId)
       }
     case AVMEDIA_TYPE_VIDEO:
       {
+        if (pStream->codec->codec_id == AV_CODEC_ID_H264_MVC)
+        {
+          // ignore MVC extension streams, they are handled specially
+          stream = new CDemuxStream();
+          stream->type = STREAM_DATA;
+          stream->disabled = true;
+          pStream->need_parsing = AVSTREAM_PARSE_NONE;
+          break;
+        }
         CDemuxStreamVideoFFmpeg* st = new CDemuxStreamVideoFFmpeg(this, pStream);
         stream = st;
         if(strcmp(m_pFormatContext->iformat->name, "flv") == 0)
@@ -1162,7 +1172,7 @@ CDemuxStream* CDVDDemuxFFmpeg::AddStream(int iId)
           st->bVFR = false;
 
         // never trust pts in avi files with h264.
-        if (m_bAVI && pStream->codec->codec_id == AV_CODEC_ID_H264)
+        if (m_bAVI && (pStream->codec->codec_id == AV_CODEC_ID_H264 || pStream->codec->codec_id == AV_CODEC_ID_H264_MVC))
           st->bPTSInvalid = true;
 
 #if defined(AVFORMAT_HAS_STREAM_GET_R_FRAME_RATE)
@@ -1245,6 +1255,17 @@ CDemuxStream* CDVDDemuxFFmpeg::AddStream(int iId)
         if (av_dict_get(pStream->metadata, "title", NULL, 0))
           st->m_description = av_dict_get(pStream->metadata, "title", NULL, 0)->value;
 
+        if (pStream->codec->codec_id == AV_CODEC_ID_H264)
+        {
+          if (CDVDCodecUtils::IsH264AnnexB(m_pFormatContext->iformat->name, pStream))
+          {
+            // TODO
+          }
+          else if (CDVDCodecUtils::ProcessH264MVCExtradata(pStream->codec->extradata, pStream->codec->extradata_size))
+          {
+            pStream->codec->codec_tag = MKTAG('M', 'V', 'C', '1');
+          }
+        }
         break;
       }
     case AVMEDIA_TYPE_DATA:
