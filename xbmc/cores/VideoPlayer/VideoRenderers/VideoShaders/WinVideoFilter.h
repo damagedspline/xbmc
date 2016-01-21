@@ -84,7 +84,8 @@ public:
                       float contrast,
                       float brightness,
                       unsigned int flags,
-                      YUVBuffer* YUVbuf);
+                      YUVBuffer* YUVbuf,
+                      bool extendedView = false);
   CYUV2RGBShader() : 
     m_sourceWidth (0),
     m_sourceHeight(0),
@@ -100,7 +101,7 @@ protected:
                                  float contrast,
                                  float brightness,
                                  unsigned int flags);
-  virtual void SetShaderParameters(YUVBuffer* YUVbuf);
+  virtual void SetShaderParameters(YUVBuffer* YUVbuf, bool extendedView);
 
 private:
   CYUV2RGBMatrix      m_matrix;
