@@ -115,8 +115,9 @@ struct YUVBuffer : SVideoBuffer
   unsigned int GetActivePlanes() { return m_activeplanes; }
   virtual bool IsReadyToRender();
   bool CopyFromDXVA(ID3D11VideoDecoderOutputView* pView);
-
+  bool CopyFromMVC(CMVCPicture* mvc);
   SVideoPlane planes[MAX_PLANES];
+  SVideoPlane stereo[MAX_PLANES];
 
 private:
   void PerformCopy();
@@ -199,6 +200,7 @@ protected:
   bool CreateIntermediateRenderTarget(unsigned int width, unsigned int height);
   bool CopyDXVA2YUVBuffer(ID3D11VideoDecoderOutputView* pView, YUVBuffer *pBuf);
   ID3D11View* SelectDXVAView(DXVA::CRenderPicture* pic);
+  void InitDXVAProcessor();
 
   void RenderProcessor(DWORD flags);
   int  m_iYV12RenderBuffer;
