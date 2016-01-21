@@ -21,7 +21,8 @@
 #ifdef HAS_DX
 
 #include "WinRenderer.h"
-#include "cores/VideoPlayer/DVDCodecs/Video/DVDVideoCodec.h"
+#include "DVDCodecs/Video/DVDVideoCodec.h"
+#include "DVDCodecs/Video/DVDVideoCodecMFX.h"
 #include "cores/FFmpeg.h"
 #include "dialogs/GUIDialogKaiToast.h"
 #include "guilib/LocalizeStrings.h"
@@ -33,6 +34,7 @@
 #include "utils/CPUInfo.h"
 #include "utils/log.h"
 #include "utils/win32/gpu_memcpy_sse4.h"
+#include "utils/win32/memcpy_sse2.h"
 #include "VideoShaders/WinVideoFilter.h"
 #include "win32/WIN32Util.h"
 #include "windowing/WindowingFactory.h"
@@ -131,7 +133,7 @@ void CWinRenderer::SelectRenderMethod()
 
   // Force dxva renderer after dxva decoding: PS and SW renderers have performance issues after dxva decode.
   // also force dxva renderer for MVC, it's only one which supports MVC format
-  if ((g_advancedSettings.m_DXVAForceProcessorRenderer && m_format == RENDER_FMT_DXVA) || m_format == RENDER_FMT_MSDK_MVC)
+  if ((g_advancedSettings.m_DXVAForceProcessorRenderer && m_format == RENDER_FMT_DXVA))
   {
     CLog::Log(LOGNOTICE, "D3D: rendering method forced to DXVA processor");
     m_renderMethod = RENDER_DXVA;
@@ -241,7 +243,9 @@ bool CWinRenderer::AddVideoPicture(DVDVideoPicture* picture, int index)
   if (source < 0 || NextYV12Texture() < 0)
     return false;
 
-  if (m_renderMethod == RENDER_DXVA || picture->format == RENDER_FMT_DXVA)
+  if (m_renderMethod == RENDER_DXVA 
+    || picture->format == RENDER_FMT_DXVA 
+    || picture->format == RENDER_FMT_MSDK_MVC)
   {
     if (m_renderMethod == RENDER_DXVA)
     {
@@ -268,6 +272,14 @@ bool CWinRenderer::AddVideoPicture(DVDVideoPicture* picture, int index)
         return false;
 
       return buf->CopyFromDXVA(reinterpret_cast<ID3D11VideoDecoderOutputView*>(picture->dxva->view));
+    }
+    else if (picture->format == RENDER_FMT_MSDK_MVC)
+    {
+      YUVBuffer *buf = reinterpret_cast<YUVBuffer*>(m_VideoBuffers[source]);
+      if (buf->IsReadyToRender())
+        return false;
+
+      return buf->CopyFromMVC(picture->mvc);
     }
   }
   return false;
@@ -370,14 +382,7 @@ void CWinRenderer::PreInit()
   if (g_advancedSettings.m_DXVAForceProcessorRenderer
   ||  m_iRequestedMethod == RENDER_METHOD_DXVA)
   {
-    m_processor = new DXVA::CProcessorHD();
-    if (!m_processor->PreInit())
-    {
-      CLog::Log(LOGNOTICE, "CWinRenderer::Preinit - could not init DXVA processor - skipping");
-      SAFE_DELETE(m_processor);
-    }
-    else
-      m_processor->ApplySupportedFormats(&m_formats);
+    InitDXVAProcessor();
   }
 
   // allow other color spaces besides YV12 in case DXVA rendering is not used or not available
@@ -393,6 +398,21 @@ void CWinRenderer::PreInit()
     m_formats.push_back(RENDER_FMT_YUYV422);
     m_formats.push_back(RENDER_FMT_UYVY422);
   }
+}
+
+void CWinRenderer::InitDXVAProcessor()
+{
+  SAFE_DELETE(m_processor);
+
+  m_processor = new DXVA::CProcessorHD();
+  if (!m_processor->PreInit())
+  {
+    CLog::Log(LOGNOTICE, "%s - could not init DXVA processor - skipping.", __FUNCTION__);
+    SAFE_DELETE(m_processor);
+  }
+  else
+    m_processor->ApplySupportedFormats(&m_formats);
+
 }
 
 void CWinRenderer::UnInit()
@@ -777,11 +797,27 @@ void CWinRenderer::RenderPS()
     destPoints[3] = { destRect.x1, destRect.y2 };
   }
 
+  bool isExtended = false;
+  if (g_graphicsContext.GetStereoMode() != RENDER_STEREO_MODE_OFF
+    && g_graphicsContext.GetStereoMode() != RENDER_STEREO_MODE_MONO
+    && m_format == RENDER_FMT_MSDK_MVC)
+  {
+    int stereo_view = g_graphicsContext.GetStereoView();
+    if (CMediaSettings::GetInstance().GetCurrentVideoSettings().m_StereoInvert)
+    {
+      // flip eyes
+      if (stereo_view == RENDER_STEREO_VIEW_LEFT)  stereo_view = RENDER_STEREO_VIEW_RIGHT;
+      else if (stereo_view == RENDER_STEREO_VIEW_RIGHT) stereo_view = RENDER_STEREO_VIEW_LEFT;
+    }
+    isExtended = stereo_view == RENDER_STEREO_VIEW_RIGHT;
+  }
+
   // render video frame
   m_colorShader->Render(m_sourceRect, destPoints,
                         CMediaSettings::GetInstance().GetCurrentVideoSettings().m_Contrast,
                         CMediaSettings::GetInstance().GetCurrentVideoSettings().m_Brightness,
-                        m_iFlags, reinterpret_cast<YUVBuffer*>(m_VideoBuffers[m_iYV12RenderBuffer]));
+                        m_iFlags, reinterpret_cast<YUVBuffer*>(m_VideoBuffers[m_iYV12RenderBuffer]),
+                        isExtended);
   // Restore our view port.
   g_Windowing.RestoreViewPort();
   // Restore the render target and depth view.
@@ -1191,7 +1227,8 @@ bool YUVBuffer::Create(ERenderFormat format, unsigned int width, unsigned int he
     }
   case RENDER_FMT_DXVA:
   case RENDER_FMT_NV12:
-    {
+  case RENDER_FMT_MSDK_MVC:
+  {
       DXGI_FORMAT uvFormat = DXGI_FORMAT_R8G8_UNORM;
       // FL 9.x doesn't support DXGI_FORMAT_R8G8_UNORM, so we have to use SNORM and correct values in shader
       if (!g_Windowing.IsFormatSupport(uvFormat, D3D11_FORMAT_SUPPORT_TEXTURE2D))
@@ -1199,6 +1236,13 @@ bool YUVBuffer::Create(ERenderFormat format, unsigned int width, unsigned int he
       if ( !planes[PLANE_Y].texture.Create( m_width,      m_height,      1, usage, DXGI_FORMAT_R8_UNORM)
         || !planes[PLANE_UV].texture.Create(m_width >> 1, m_height >> 1, 1, usage, uvFormat))
         return false;
+      if (m_format == RENDER_FMT_MSDK_MVC)
+      {
+        // creates stereo pairs
+        if ( !stereo[PLANE_Y].texture.Create( m_width,      m_height,      1, usage, DXGI_FORMAT_R8_UNORM)
+          || !stereo[PLANE_UV].texture.Create(m_width >> 1, m_height >> 1, 1, usage, uvFormat))
+          return false;
+      }
       m_activeplanes = 2;
       break;
     }
@@ -1235,6 +1279,16 @@ void YUVBuffer::Release()
 
     planes[i].texture.Release();
     memset(&planes[i].rect, 0, sizeof(planes[i].rect));
+
+    if (m_format == RENDER_FMT_MSDK_MVC)
+    {
+      // unlock before release
+      if (m_locked && stereo[i].texture.Get() && stereo[i].rect.pData)
+        stereo[i].texture.UnlockRect(0);
+
+      stereo[i].texture.Release();
+      memset(&planes[i].rect, 0, sizeof(stereo[i].rect));
+    }
   }
 }
 
@@ -1251,6 +1305,14 @@ void YUVBuffer::StartRender()
       if (!planes[i].texture.UnlockRect(0))
         CLog::Log(LOGERROR, __FUNCTION__" - failed to unlock texture %d", i);
     memset(&planes[i].rect, 0, sizeof(planes[i].rect));
+
+    if (m_format == RENDER_FMT_MSDK_MVC)
+    {
+      if (stereo[i].texture.Get() && stereo[i].rect.pData)
+        if (!stereo[i].texture.UnlockRect(0))
+          CLog::Log(LOGERROR, __FUNCTION__" - failed to unlock texture %d", i);
+      memset(&stereo[i].rect, 0, sizeof(stereo[i].rect));
+    }
   }
 }
 
@@ -1267,6 +1329,15 @@ void YUVBuffer::StartDecode()
     && planes[i].texture.LockRect(0, &planes[i].rect, m_mapType) == false)
     {
       memset(&planes[i].rect, 0, sizeof(planes[i].rect));
+      CLog::Log(LOGERROR, __FUNCTION__" - failed to lock texture %d into memory", i);
+      m_locked = false;
+    }
+
+    if(m_format == RENDER_FMT_MSDK_MVC
+      && stereo[i].texture.Get()
+      && stereo[i].texture.LockRect(0, &stereo[i].rect, m_mapType) == false)
+    {
+      memset(&stereo[i].rect, 0, sizeof(stereo[i].rect));
       CLog::Log(LOGERROR, __FUNCTION__" - failed to lock texture %d into memory", i);
       m_locked = false;
     }
@@ -1302,9 +1373,15 @@ void YUVBuffer::Clear()
     }
   case RENDER_FMT_DXVA:
   case RENDER_FMT_NV12:
+  case RENDER_FMT_MSDK_MVC:
     {
       memset(planes[PLANE_Y].rect.pData,    0, planes[PLANE_Y].rect.RowPitch *  m_height);
       memset(planes[PLANE_UV].rect.pData, 128, planes[PLANE_U].rect.RowPitch * (m_height / 2));
+      if (m_format == RENDER_FMT_MSDK_MVC)
+      {
+        memset(stereo[PLANE_Y].rect.pData,    0, stereo[PLANE_Y].rect.RowPitch *  m_height);
+        memset(stereo[PLANE_UV].rect.pData, 128, stereo[PLANE_U].rect.RowPitch * (m_height / 2));
+      }
       break;
     }
   // YUY2, UYVY: wmemset to set a 16bit pattern, byte-swapped because x86 is LE
@@ -1421,6 +1498,26 @@ void YUVBuffer::PerformCopy()
     }
     pContext->Unmap(m_staging, 0);
   }
+}
+
+bool YUVBuffer::CopyFromMVC(CMVCPicture* mvc)
+{
+  // copy base frame
+  uint8_t*  src1[] = { mvc->baseView->surface.Data.Y, mvc->baseView->surface.Data.UV };
+  int srcStride1[] = { mvc->baseView->surface.Data.PitchLow, mvc->baseView->surface.Data.PitchLow };
+  uint8_t*  dst1[] = { static_cast<uint8_t*>(planes[PLANE_Y].rect.pData), static_cast<uint8_t*>(planes[PLANE_UV].rect.pData) };
+  int dstStride1[] = { planes[PLANE_Y].rect.RowPitch, planes[PLANE_UV].rect.RowPitch };
+
+  copy_nv12(src1, srcStride1, m_height, m_width, dst1, dstStride1);
+
+  uint8_t*  src2[] = { mvc->extraView->surface.Data.Y, mvc->extraView->surface.Data.UV };
+  int srcStride2[] = { mvc->extraView->surface.Data.PitchLow, mvc->extraView->surface.Data.PitchLow };
+  uint8_t*  dst2[] = { static_cast<uint8_t*>(stereo[PLANE_Y].rect.pData), static_cast<uint8_t*>(stereo[PLANE_UV].rect.pData) };
+  int dstStride2[] = { stereo[PLANE_Y].rect.RowPitch, stereo[PLANE_UV].rect.RowPitch };
+
+  copy_nv12(src2, srcStride2, m_height, m_width, dst2, dstStride2);
+
+  return true;
 }
 
 #endif

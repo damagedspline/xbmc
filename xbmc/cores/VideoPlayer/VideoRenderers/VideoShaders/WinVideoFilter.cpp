@@ -268,6 +268,7 @@ bool CYUV2RGBShader::Create(unsigned int sourceWidth, unsigned int sourceHeight,
     texWidth = sourceWidth;
     break;
   case RENDER_FMT_NV12:
+  case RENDER_FMT_MSDK_MVC:
     defines["XBMC_NV12"] = "";
     texWidth = sourceWidth;
     // FL 9.x doesn't support DXGI_FORMAT_R8G8_UNORM, so we have to use SNORM and correct values in shader
@@ -319,11 +320,12 @@ void CYUV2RGBShader::Render(CRect sourceRect, CPoint dest[],
                             float contrast,
                             float brightness,
                             unsigned int flags,
-                            YUVBuffer* YUVbuf)
+                            YUVBuffer* YUVbuf,
+                            bool extendedView)
 {
   PrepareParameters(sourceRect, dest,
                     contrast, brightness, flags);
-  SetShaderParameters(YUVbuf);
+  SetShaderParameters(YUVbuf, extendedView);
   Execute(nullptr, 4);
 }
 
@@ -389,15 +391,15 @@ void CYUV2RGBShader::PrepareParameters(CRect sourceRect,
                          m_format);
 }
 
-void CYUV2RGBShader::SetShaderParameters(YUVBuffer* YUVbuf)
+void CYUV2RGBShader::SetShaderParameters(YUVBuffer* YUVbuf, bool extendedView)
 {
   m_effect.SetTechnique("YUV2RGB_T");
   m_effect.SetMatrix("g_ColorMatrix", m_matrix.Matrix());
-  m_effect.SetTexture("g_YTexture", YUVbuf->planes[0].texture);
+  m_effect.SetTexture("g_YTexture", extendedView ? YUVbuf->stereo[0].texture : YUVbuf->planes[0].texture);
   if (YUVbuf->GetActivePlanes() > 1)
-    m_effect.SetTexture("g_UTexture", YUVbuf->planes[1].texture);
+    m_effect.SetTexture("g_UTexture", extendedView ? YUVbuf->stereo[1].texture : YUVbuf->planes[1].texture);
   if (YUVbuf->GetActivePlanes() > 2)
-    m_effect.SetTexture("g_VTexture", YUVbuf->planes[2].texture);
+    m_effect.SetTexture("g_VTexture", extendedView ? YUVbuf->stereo[2].texture : YUVbuf->planes[2].texture);
   m_effect.SetFloatArray("g_StepXY", m_texSteps, ARRAY_SIZE(m_texSteps));
 
   UINT numPorts = 1;
