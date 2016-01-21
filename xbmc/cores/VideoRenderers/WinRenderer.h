@@ -201,6 +201,7 @@ protected:
   bool CopyDXVA2YUVBuffer(ID3D11VideoDecoderOutputView* pView, YUVBuffer *pBuf);
   ID3D11View* SelectDXVAView(DXVA::CRenderPicture* pic);
   void InitDXVAProcessor();
+  bool UseExtendedMVCView();
 
   void RenderProcessor(DWORD flags);
   int  m_iYV12RenderBuffer;

@@ -98,14 +98,15 @@ CWinRenderer::~CWinRenderer()
 
 static enum PixelFormat PixelFormatFromFormat(ERenderFormat format)
 {
-  if (format == RENDER_FMT_DXVA)      return PIX_FMT_NV12;
-  if (format == RENDER_FMT_YUV420P)   return PIX_FMT_YUV420P;
-  if (format == RENDER_FMT_YUV420P10) return PIX_FMT_YUV420P10;
-  if (format == RENDER_FMT_YUV420P16) return PIX_FMT_YUV420P16;
-  if (format == RENDER_FMT_NV12)      return PIX_FMT_NV12;
-  if (format == RENDER_FMT_UYVY422)   return PIX_FMT_UYVY422;
-  if (format == RENDER_FMT_YUYV422)   return PIX_FMT_YUYV422;
-  return PIX_FMT_NONE;
+  if (format == RENDER_FMT_DXVA)      return AV_PIX_FMT_NV12;
+  if (format == RENDER_FMT_YUV420P)   return AV_PIX_FMT_YUV420P;
+  if (format == RENDER_FMT_YUV420P10) return AV_PIX_FMT_YUV420P10;
+  if (format == RENDER_FMT_YUV420P16) return AV_PIX_FMT_YUV420P16;
+  if (format == RENDER_FMT_NV12)      return AV_PIX_FMT_NV12;
+  if (format == RENDER_FMT_UYVY422)   return AV_PIX_FMT_UYVY422;
+  if (format == RENDER_FMT_YUYV422)   return AV_PIX_FMT_YUYV422;
+  if (format == RENDER_FMT_MSDK_MVC)  return AV_PIX_FMT_NV12;
+  return AV_PIX_FMT_NONE;
 }
 
 void CWinRenderer::ManageTextures()
@@ -752,10 +753,12 @@ void CWinRenderer::RenderSW()
   D3D11_MAPPED_SUBRESOURCE srclr[MAX_PLANES];
   uint8_t*                 src[MAX_PLANES];
   int                      srcStride[MAX_PLANES];
+  bool isExtended = UseExtendedMVCView();
 
   for (unsigned int idx = 0; idx < buf->GetActivePlanes(); idx++)
   {
-    if(!(buf->planes[idx].texture.LockRect(0, &srclr[idx], D3D11_MAP_READ)))
+    CD3DTexture *texture = isExtended ? &buf->stereo[idx].texture : &buf->planes[idx].texture;
+    if(!(texture->LockRect(0, &srclr[idx], D3D11_MAP_READ)))
       CLog::Log(LOGERROR, __FUNCTION__" - failed to lock yuv textures into memory");
     else
     {
@@ -774,9 +777,11 @@ void CWinRenderer::RenderSW()
   sws_scale(m_sw_scale_ctx, src, srcStride, 0, m_sourceHeight, dst, dstStride);
 
   for (unsigned int idx = 0; idx < buf->GetActivePlanes(); idx++)
-    if(!(buf->planes[idx].texture.UnlockRect(0)))
+  {
+    CD3DTexture *texture = isExtended ? &buf->stereo[idx].texture : &buf->planes[idx].texture;
+    if (!(texture->UnlockRect(0)))
       CLog::Log(LOGERROR, __FUNCTION__" - failed to unlock yuv textures");
-
+  }
   if (!m_SWTarget.UnlockRect(0))
     CLog::Log(LOGERROR, __FUNCTION__" - failed to unlock swtarget texture");
 
@@ -853,21 +858,6 @@ void CWinRenderer::Stage1()
   }
   // reset view port
   pContext->RSSetViewports(1, &viewPort);
-  bool isExtended = false;
-  if (g_graphicsContext.GetStereoMode() != RENDER_STEREO_MODE_OFF
-    && g_graphicsContext.GetStereoMode() != RENDER_STEREO_MODE_MONO
-    && m_format == RENDER_FMT_MSDK_MVC)
-  {
-    int stereo_view = g_graphicsContext.GetStereoView();
-    if (CMediaSettings::GetInstance().GetCurrentVideoSettings().m_StereoInvert)
-    {
-      // flip eyes
-      if (stereo_view == RENDER_STEREO_VIEW_LEFT)  stereo_view = RENDER_STEREO_VIEW_RIGHT;
-      else if (stereo_view == RENDER_STEREO_VIEW_RIGHT) stereo_view = RENDER_STEREO_VIEW_LEFT;
-    }
-    isExtended = stereo_view == RENDER_STEREO_VIEW_RIGHT;
-  }
-
   // select destination rectangle 
   CPoint destPoints[4];
   if (m_renderOrientation)
@@ -889,7 +879,7 @@ void CWinRenderer::Stage1()
                         CMediaSettings::GetInstance().GetCurrentVideoSettings().m_Contrast,
                         CMediaSettings::GetInstance().GetCurrentVideoSettings().m_Brightness,
                         m_iFlags, reinterpret_cast<YUVBuffer*>(m_VideoBuffers[m_iYV12RenderBuffer]),
-                        isExtended);
+                        UseExtendedMVCView());
   // Restore our view port.
   g_Windowing.RestoreViewPort();
   // Restore the render target and depth view.
@@ -910,24 +900,7 @@ void CWinRenderer::Stage2()
 
 ID3D11View* CWinRenderer::SelectDXVAView(DXVA::CRenderPicture* pic)
 {
-  if (g_graphicsContext.GetStereoMode() != RENDER_STEREO_MODE_OFF
-    && g_graphicsContext.GetStereoMode() != RENDER_STEREO_MODE_MONO
-    && m_format == RENDER_FMT_MSDK_MVC
-    && pic->viewEx != nullptr)
-  {
-    int stereo_view = g_graphicsContext.GetStereoView();
-    if (CMediaSettings::GetInstance().GetCurrentVideoSettings().m_StereoInvert)
-    {
-      // flip eyes
-      if (stereo_view == RENDER_STEREO_VIEW_LEFT)  stereo_view = RENDER_STEREO_VIEW_RIGHT;
-      else if (stereo_view == RENDER_STEREO_VIEW_RIGHT) stereo_view = RENDER_STEREO_VIEW_LEFT;
-    }
-
-    return stereo_view == RENDER_STEREO_VIEW_LEFT ? pic->view : pic->viewEx;
-  }
-
-  // in any other case just return base view
-  return pic->view;
+  return UseExtendedMVCView() && pic->viewEx ? pic->viewEx : pic->view;
 }
 
 void CWinRenderer::RenderProcessor(DWORD flags)
@@ -1250,6 +1223,25 @@ bool CWinRenderer::NeedBufferForRef(int idx)
     }
   }
   return false;
+}
+
+bool CWinRenderer::UseExtendedMVCView()
+{
+  bool isExtended = false;
+  if (g_graphicsContext.GetStereoMode() != RENDER_STEREO_MODE_OFF
+    && g_graphicsContext.GetStereoMode() != RENDER_STEREO_MODE_MONO
+    && m_format == RENDER_FMT_MSDK_MVC)
+  {
+    int stereo_view = g_graphicsContext.GetStereoView();
+    if (CMediaSettings::GetInstance().GetCurrentVideoSettings().m_StereoInvert)
+    {
+      // flip eyes
+      if (stereo_view == RENDER_STEREO_VIEW_LEFT)  stereo_view = RENDER_STEREO_VIEW_RIGHT;
+      else if (stereo_view == RENDER_STEREO_VIEW_RIGHT) stereo_view = RENDER_STEREO_VIEW_LEFT;
+    }
+    isExtended = (stereo_view == RENDER_STEREO_VIEW_RIGHT);
+  }
+  return isExtended;
 }
 
 //============================================
