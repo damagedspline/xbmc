@@ -26,6 +26,7 @@
 #include "cores/FFmpeg.h"
 #include "DVDCodecs/DVDCodecUtils.h"
 #include "DVDClock.h" // for DVD_TIME_BASE
+#include "DVDDemuxMVC.h"
 #include "DVDDemuxUtils.h"
 #include "DVDInputStreams/DVDInputStream.h"
 #include "DVDInputStreams/DVDInputStreamFFmpeg.h"
@@ -522,6 +523,16 @@ bool CDVDDemuxFFmpeg::Open(CDVDInputStream* pInput, bool streaminfo, bool filein
 
   UpdateCurrentPTS();
 
+  if (!fileinfo && m_pInput->IsStreamType(DVDSTREAM_TYPE_BLURAY))
+  {
+    CDVDInputStreamBluray *bluRay = static_cast<CDVDInputStreamBluray*>(m_pInput);
+    if (bluRay->HasMVC())
+    {
+      SAFE_DELETE(m_pSSIF);
+      m_pSSIF = new CDVDDemuxStreamSSIF();
+      m_pSSIF->SetBluRay(bluRay);
+    }
+  }
   // in case of mpegts and we have not seen pat/pmt, defer creation of streams
   if (!skipCreateStreams || m_pFormatContext->nb_programs > 0)
     CreateStreams();
@@ -1292,6 +1303,29 @@ CDemuxStream* CDVDDemuxFFmpeg::AddStream(int iId)
             {
               m_pSSIF->SetH264StreamId(iId);
               pStream->codec->codec_tag = MKTAG('A', 'M', 'V', 'C');
+
+              AVStream* mvcStream = nullptr;
+              if (m_pInput->IsStreamType(DVDSTREAM_TYPE_BLURAY))
+              {
+                CDVDInputStreamBluray *bluRay = static_cast<CDVDInputStreamBluray*>(m_pInput);
+                if (bluRay->HasMVC())
+                {
+                  st->stereo_mode = bluRay->AreEyesFlipped() ? "mvc_rl" : "mvc_lr";
+                  mvcStream = static_cast<CDVDDemuxMVC*>(bluRay->GetDemuxMVC())->GetAVStream();
+                }
+              }
+              else
+                mvcStream = m_pFormatContext->streams[m_pSSIF->GetMVCStreamId()];
+
+              if (mvcStream && pStream->codec->extradata_size > 0 && mvcStream->codec->extradata_size > 0)
+              {
+                uint8_t* extr = pStream->codec->extradata;
+                pStream->codec->extradata = (uint8_t*)av_mallocz(pStream->codec->extradata_size + mvcStream->codec->extradata_size + FF_INPUT_BUFFER_PADDING_SIZE);
+                memcpy(pStream->codec->extradata, extr, pStream->codec->extradata_size);
+                memcpy(pStream->codec->extradata + pStream->codec->extradata_size, mvcStream->codec->extradata, mvcStream->codec->extradata_size);
+                pStream->codec->extradata_size += mvcStream->codec->extradata_size;
+                av_free(extr);
+              }
             }
           }
           else if (CDVDCodecUtils::ProcessH264MVCExtradata(pStream->codec->extradata, pStream->codec->extradata_size))
@@ -1552,6 +1586,12 @@ bool CDVDDemuxFFmpeg::SeekChapter(int chapter, double* startpts)
     }
 
     Flush();
+    if (m_pInput->IsStreamType(DVDSTREAM_TYPE_BLURAY) 
+      && static_cast<CDVDInputStreamBluray*>(m_pInput)->HasMVC())
+    {
+      // also empty the internal ffmpeg buffer otherwise it may cause MVC buffers hang
+      m_ioContext->buf_ptr = m_ioContext->buf_end;
+    }
     return true;
   }
 

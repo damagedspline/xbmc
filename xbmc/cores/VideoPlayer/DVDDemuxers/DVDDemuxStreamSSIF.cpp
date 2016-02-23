@@ -19,6 +19,7 @@
 */
 
 #include "DVDDemuxStreamSSIF.h"
+#include "DVDDemux.h"
 #include "DVDClock.h"
 #include "DVDDemuxUtils.h"
 #include "utils/log.h"
@@ -37,7 +38,7 @@ DemuxPacket* CDVDDemuxStreamSSIF::AddPacket(DemuxPacket* &srcPkt)
   }
   else if (srcPkt->iStreamId == m_mvcStreamId)
   {
-    m_MVCqueue.push(srcPkt);
+    AddMVCExtPacket(srcPkt);
   }
 
   return GetMVCPacket();
@@ -81,6 +82,15 @@ DemuxPacket* CDVDDemuxStreamSSIF::MergePacket(DemuxPacket* &srcPkt, DemuxPacket*
 
 DemuxPacket* CDVDDemuxStreamSSIF::GetMVCPacket()
 {
+  // if input is a bluray and mvc queue is empty let's fill mvc queue firstly
+  if (m_bluRay && m_MVCqueue.empty() && !m_H264queue.empty())
+  {
+#if defined(DEBUG_VERBOSE)
+    CLog::Log(LOGDEBUG, ">>> MVC queue is empty. Filling...", m_MVCqueue.size(), m_H264queue.size());
+#endif
+    FillMVCQueue(m_H264queue.front()->dts);
+  }
+
   // Here, we recreate a h264 MVC packet from the base one + buffered MVC NALU's
   while (!m_H264queue.empty() && !m_MVCqueue.empty())
   {
@@ -151,6 +161,49 @@ DemuxPacket* CDVDDemuxStreamSSIF::GetMVCPacket()
 #if defined(DEBUG_VERBOSE)
   CLog::Log(LOGDEBUG, ">>> MVC waiting. MVC(%d) H264(%d)", m_MVCqueue.size(), m_H264queue.size());
 #endif
-
   return CDVDDemuxUtils::AllocateDemuxPacket(0);
+}
+
+void CDVDDemuxStreamSSIF::AddMVCExtPacket(DemuxPacket* &mvcExtPkt)
+{
+  m_MVCqueue.push(mvcExtPkt);
+}
+
+bool CDVDDemuxStreamSSIF::FillMVCQueue(double dtsBase)
+{
+  if (!m_bluRay)
+    return false;
+
+  int count = 0;
+  bool found = (dtsBase == DVD_NOPTS_VALUE);
+  CDVDDemux* demux = m_bluRay->GetDemuxMVC();
+
+  while (count < 100)
+  {
+    DemuxPacket* mvcPacket = demux->Read();
+    if (!mvcPacket)
+      break;
+
+    if (dtsBase == DVD_NOPTS_VALUE || mvcPacket->dts == DVD_NOPTS_VALUE)
+    {
+      // do nothing, can't compare timestamps when they are not set
+    }
+    else if (mvcPacket->dts < dtsBase)
+    {
+#if defined(DEBUG_VERBOSE)
+      CLog::Log(LOGDEBUG, ">>> MVC discard mvc: %6d, pts(%.3f) dts(%.3f)", mvcPacket->iSize, mvcPacket->pts*1e-6, mvcPacket->dts*1e-6);
+#endif
+      CDVDDemuxUtils::FreeDemuxPacket(mvcPacket);
+      continue;
+    }
+    else if (mvcPacket->dts == dtsBase)
+    {
+      found = true;
+    }
+
+    AddMVCExtPacket(mvcPacket);
+    count++;
+  };
+
+  return found;
 }

@@ -279,6 +279,7 @@
     <ClCompile Include="..\..\xbmc\cores\VideoPlayer\DVDDemuxers\DVDDemuxCC.cpp" />
     <ClCompile Include="..\..\xbmc\cores\VideoPlayer\DVDDemuxers\DVDDemuxCDDA.cpp" />
     <ClCompile Include="..\..\xbmc\cores\VideoPlayer\DVDDemuxers\DVDDemuxClient.cpp" />
+    <ClCompile Include="..\..\xbmc\cores\VideoPlayer\DVDDemuxers\DVDDemuxMVC.cpp" />
     <ClCompile Include="..\..\xbmc\cores\VideoPlayer\DVDDemuxers\DVDDemuxStreamSSIF.cpp" />
     <ClCompile Include="..\..\xbmc\cores\VideoPlayer\DVDInputStreams\DVDInputStreamBluray.cpp" />
     <ClCompile Include="..\..\xbmc\cores\VideoPlayer\DVDInputStreams\DVDInputStreamPVRManager.cpp" />
@@ -983,6 +984,7 @@
     <ClInclude Include="..\..\xbmc\cores\FFmpeg.h" />
     <ClInclude Include="..\..\xbmc\cores\VideoPlayer\DVDDemuxers\DVDDemuxClient.h" />
     <ClInclude Include="..\..\xbmc\cores\VideoPlayer\Process\ProcessInfo.h" />
+    <ClInclude Include="..\..\xbmc\cores\VideoPlayer\DVDDemuxers\DVDDemuxMVC.h" />
     <ClInclude Include="..\..\xbmc\cores\VideoPlayer\DVDDemuxers\DVDDemuxStreamSSIF.h" />
     <ClInclude Include="..\..\xbmc\cores\VideoPlayer\VideoRenderers\BaseRenderer.h" />
     <ClInclude Include="..\..\xbmc\cores\VideoPlayer\VideoRenderers\HwDecRender\DXVAHD.h" />
