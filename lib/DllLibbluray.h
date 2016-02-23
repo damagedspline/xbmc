@@ -31,6 +31,8 @@ extern "C"
 #include <libbluray/log_control.h>
 #include <libbluray/keys.h>
 #include <libbluray/overlay.h>
+#include <libbluray/clpi_parse.h>
+#include <libbluray/mpls_parse.h>
 }
 
 class DllLibblurayInterface
@@ -61,6 +63,7 @@ public:
   virtual uint64_t bd_tell_time(BLURAY *bd)=0;
   virtual BD_FILE_OPEN bd_register_file(BD_FILE_OPEN p)=0;
   virtual BD_DIR_OPEN bd_register_dir(BD_DIR_OPEN p)=0;
+  virtual MPLS_PL* bd_get_title_mpls(BLURAY *bd) = 0;
 
   virtual void     bd_set_debug_handler(BD_LOG_FUNC)=0;
   virtual void     bd_set_debug_mask(uint32_t mask)=0;
@@ -109,6 +112,7 @@ class DllLibbluray : public DllDynamic, DllLibblurayInterface
   DEFINE_METHOD1(uint64_t,            bd_tell_time,           (BLURAY *p1))
   DEFINE_METHOD1(BD_FILE_OPEN,        bd_register_file,       (BD_FILE_OPEN p1))
   DEFINE_METHOD1(BD_DIR_OPEN,         bd_register_dir,        (BD_DIR_OPEN p1))
+  DEFINE_METHOD1(MPLS_PL*,            bd_get_title_mpls,      (BLURAY *p1))
 
   DEFINE_METHOD1(void,                bd_set_debug_handler,   (BD_LOG_FUNC p1))
   DEFINE_METHOD1(void,                bd_set_debug_mask,      (uint32_t p1))
@@ -154,6 +158,7 @@ class DllLibbluray : public DllDynamic, DllLibblurayInterface
     RESOLVE_METHOD_RENAME(bd_tell_time,         bd_tell_time)
     RESOLVE_METHOD_RENAME(bd_register_file,     bd_register_file)
     RESOLVE_METHOD_RENAME(bd_register_dir,      bd_register_dir)
+    RESOLVE_METHOD_RENAME(bd_get_title_mpls,    bd_get_title_mpls)
     RESOLVE_METHOD(bd_set_debug_handler)
     RESOLVE_METHOD(bd_set_debug_mask)
     RESOLVE_METHOD(bd_get_debug_mask)
