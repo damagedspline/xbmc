@@ -41,6 +41,7 @@ extern "C"
 class CDVDOverlayImage;
 class DllLibbluray;
 class IVideoPlayer;
+class CDVDDemux;
 
 class CDVDInputStreamBluray 
   : public CDVDInputStream
@@ -122,6 +123,9 @@ public:
   BLURAY_TITLE_INFO* GetTitleFile(const std::string& name);
 
   void ProcessEvent();
+  CDVDDemux* GetDemuxMVC() { return m_pMVCDemux; };
+  bool HasMVC() { return m_bMVCPlayback; }
+  bool AreEyesFlipped() { return m_bFlipEyes; }
 
 protected:
   struct SPlane;
@@ -130,6 +134,11 @@ protected:
   void OverlayClose();
   static void OverlayClear(SPlane& plane, int x, int y, int w, int h);
   static void OverlayInit (SPlane& plane, int w, int h);
+  bool ProcessItem(int playitem);
+
+  bool OpenMVCDemux(int playItem);
+  bool CloseMVCDemux();
+  void SeekMVCDemux(int64_t time);
 
   IVideoPlayer*         m_player;
   DllLibbluray*       m_dll;
@@ -141,6 +150,17 @@ protected:
   bool                m_menu;
   bool                m_navmode;
   int m_dispTimeBeforeRead;
+  int                 m_nTitles = -1;
+  std::string         m_root;
+
+  // MVC related members
+  CDVDDemux*          m_pMVCDemux = nullptr;
+  CDVDInputStream    *m_pMVCInput = nullptr;
+  bool                m_bMVCPlayback = false;
+  int                 m_nMVCSubPathIndex = 0;
+  int                 m_nMVCClip = -1;
+  bool                m_bFlipEyes = false;
+  uint64_t            m_clipStartTime = 0;
 
   typedef std::shared_ptr<CDVDOverlayImage> SOverlay;
   typedef std::list<SOverlay>                 SOverlays;

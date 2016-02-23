@@ -26,6 +26,8 @@
 #include "IVideoPlayer.h"
 #include "DVDCodecs/Overlay/DVDOverlay.h"
 #include "DVDCodecs/Overlay/DVDOverlayImage.h"
+#include "DVDInputStreamFile.h"
+#include "DVDDemuxers/DemuxMVC.h"
 #include "settings/Settings.h"
 #include "LangInfo.h"
 #include "ServiceBroker.h"
@@ -238,10 +240,8 @@ bool CDVDInputStreamBluray::IsEOF()
 
 BLURAY_TITLE_INFO* CDVDInputStreamBluray::GetTitleLongest()
 {
-  int titles = m_dll->bd_get_titles(m_bd, TITLES_RELEVANT, 0);
-
   BLURAY_TITLE_INFO *s = NULL;
-  for(int i=0; i < titles; i++)
+  for(int i=0; i < m_nTitles; i++)
   {
     BLURAY_TITLE_INFO *t = m_dll->bd_get_title_info(m_bd, i, 0);
     if(!t)
@@ -333,6 +333,7 @@ bool CDVDInputStreamBluray::Open()
     return false;
   }
 
+  m_root = root;
   const BLURAY_DISC_INFO *disc_info;
 
   disc_info = m_dll->bd_get_disc_info(m_bd);
@@ -356,6 +357,7 @@ bool CDVDInputStreamBluray::Open()
     CLog::Log(LOGDEBUG, "CDVDInputStreamBluray::Open - BD+ detected        : %d", disc_info->bdplus_detected);
     CLog::Log(LOGDEBUG, "CDVDInputStreamBluray::Open - libbdplus detected  : %d", disc_info->libbdplus_detected);
     CLog::Log(LOGDEBUG, "CDVDInputStreamBluray::Open - BD+ handled         : %d", disc_info->bdplus_handled);
+    CLog::Log(LOGDEBUG, "CDVDInputStreamBluray::Open - 3D content exist    : %d", disc_info->content_exist_3D);
   }
   else
     CLog::Log(LOGERROR, "CDVDInputStreamBluray::Open - BluRay not detected");
@@ -373,6 +375,7 @@ bool CDVDInputStreamBluray::Open()
   }
 
   int mode = CServiceBroker::GetSettings().GetInt(CSettings::SETTING_DISC_PLAYBACK);
+  m_nTitles = m_dll->bd_get_titles(m_bd, TITLES_RELEVANT, 0);
 
   if (URIUtils::HasExtension(filename, ".mpls"))
   {
@@ -425,13 +428,11 @@ bool CDVDInputStreamBluray::Open()
       CLog::Log(LOGERROR, "CDVDInputStreamBluray::Open - failed to get title info");
       return false;
     }
-
-    if(m_dll->bd_select_playlist(m_bd, m_title->playlist) == 0 )
+    if (m_dll->bd_select_playlist(m_bd, m_title->playlist) == 0)
     {
       CLog::Log(LOGERROR, "CDVDInputStreamBluray::Open - failed to select title %d", m_title->idx);
       return false;
     }
-    m_clip = 0;
   }
 
   // Process any events that occured during opening
@@ -444,6 +445,8 @@ bool CDVDInputStreamBluray::Open()
 // close file and reset everything
 void CDVDInputStreamBluray::Close()
 {
+  CloseMVCDemux();
+
   if (!m_dll)
     return;
   if(m_title)
@@ -459,7 +462,7 @@ void CDVDInputStreamBluray::Close()
 
 void CDVDInputStreamBluray::ProcessEvent() {
 
-  int pid = -1;
+  int pid = -1, ret;
   switch (m_event.event) {
   
    /* errors */
@@ -545,15 +548,17 @@ void CDVDInputStreamBluray::ProcessEvent() {
     CLog::Log(LOGDEBUG, "CDVDInputStreamBluray - BD_EVENT_PLAYLIST %d",
         m_event.param);
     m_playlist = m_event.param;
-    if(m_title)
-      m_dll->bd_free_title_info(m_title);
-    m_title = m_dll->bd_get_playlist_info(m_bd, m_playlist, m_angle);
+    ProcessItem(m_playlist);
     break;
 
   case BD_EVENT_PLAYITEM:
     CLog::Log(LOGDEBUG, "CDVDInputStreamBluray - BD_EVENT_PLAYITEM %d",
         m_event.param);
     m_clip    = m_event.param;
+    uint64_t clip_start, clip_in, bytepos;
+    ret = m_dll->bd_get_clip_infos(m_bd, m_clip, &clip_start, &clip_in, &bytepos, nullptr);
+    if (ret) 
+      m_clipStartTime = clip_start / 90;
     break;
 
   case BD_EVENT_CHAPTER:
@@ -643,6 +648,12 @@ void CDVDInputStreamBluray::ProcessEvent() {
 
   /* event has been consumed */
   m_event.event = BD_EVENT_NONE;
+
+  if (m_bMVCPlayback && m_clip >= 0 && m_title && m_clip < m_title->clip_count && m_nMVCClip != m_clip)
+  {
+    CloseMVCDemux();
+    OpenMVCDemux(m_clip);
+  }
 }
 
 int CDVDInputStreamBluray::Read(uint8_t* buf, int buf_size)
@@ -959,6 +970,7 @@ bool CDVDInputStreamBluray::PosTime(int ms)
   while (m_dll->bd_get_event(m_bd, &m_event))
     ProcessEvent();
 
+  SeekMVCDemux(ms - m_clipStartTime);
   return true;
 }
 
@@ -986,6 +998,7 @@ bool CDVDInputStreamBluray::SeekChapter(int ch)
   while (m_dll->bd_get_event(m_bd, &m_event))
     ProcessEvent();
 
+  SeekMVCDemux(GetChapterPos(ch) * 1000 - m_clipStartTime);
   return true;
 }
 
@@ -1188,6 +1201,95 @@ void CDVDInputStreamBluray::SkipStill()
 bool CDVDInputStreamBluray::HasMenu()
 {
   return m_navmode;
+}
+
+bool CDVDInputStreamBluray::ProcessItem(int playitem)
+{
+  if (m_title)
+    m_dll->bd_free_title_info(m_title);
+  
+  m_title = m_dll->bd_get_playlist_info(m_bd, playitem, m_angle);
+
+  if (CServiceBroker::GetSettings().GetBool("videoplayer.supportmvc") && !m_bMVCDisabled)
+  {
+    MPLS_PL * mpls = m_dll->bd_get_title_mpls(m_bd);
+    if (mpls)
+    {
+      for (int i = 0; i < mpls->ext_sub_count; i++)
+      {
+        if (mpls->ext_sub_path[i].type == 8
+          && mpls->ext_sub_path[i].sub_playitem_count == mpls->list_count)
+        {
+          CLog::Log(LOGDEBUG, "CDVDInputStreamBluray - Enabling BD3D MVC demuxing");
+          CLog::Log(LOGDEBUG, "CDVDInputStreamBluray - MVC_Base_view_R_flag: %d", m_title->mvc_base_view_r_flag);
+          m_bMVCPlayback = true;
+          m_nMVCSubPathIndex = i;
+          m_bFlipEyes = m_title->mvc_base_view_r_flag != 0;
+          break;
+        }
+      }
+    }
+  }
+  CloseMVCDemux();
+  return true;
+}
+
+bool CDVDInputStreamBluray::OpenMVCDemux(int playItem)
+{
+  MPLS_PL *pl = m_dll->bd_get_title_mpls(m_bd);
+  if (!pl)
+    return false;
+
+  std::string strFileName;
+  strFileName.append(m_root);
+  strFileName.append("/BDMV/STREAM/");
+  strFileName.append(pl->ext_sub_path[m_nMVCSubPathIndex].sub_play_item[playItem].clip->clip_id);
+  strFileName.append(".m2ts");
+
+  CLog::Log(LOGDEBUG, "CDVDInputStreamBluray::OpenMVCDemuxer(): Opening MVC extension stream at %s", strFileName.c_str());
+
+  CFileItem fileitem(CURL(strFileName), false);
+  m_pMVCInput = new CDVDInputStreamFile(fileitem);
+
+  // Try to open the MVC stream
+  if (!m_pMVCInput->Open())
+  {
+    CloseMVCDemux();
+    m_bMVCPlayback = false;
+    return false;
+  }
+
+  if (m_pMVCDemux)
+    SAFE_DELETE(m_pMVCDemux);
+
+  CDemuxMVC* pMVCDemux = new CDemuxMVC;
+  m_pMVCDemux = pMVCDemux;
+
+  if (!pMVCDemux->Open(m_pMVCInput))
+  {
+    CloseMVCDemux();
+    m_bMVCPlayback = false;
+    return false;
+  }
+
+  m_nMVCClip = playItem;
+  return true;
+}
+
+bool CDVDInputStreamBluray::CloseMVCDemux()
+{
+  if (m_pMVCDemux)
+    SAFE_DELETE(m_pMVCDemux);
+
+  SAFE_DELETE(m_pMVCInput);
+  m_nMVCClip = -1;
+  return true;
+}
+
+void CDVDInputStreamBluray::SeekMVCDemux(int64_t time)
+{
+  if (m_bMVCPlayback && m_pMVCDemux)
+    m_pMVCDemux->SeekTime(time);
 }
 
 void CDVDInputStreamBluray::SetupPlayerSettings()
