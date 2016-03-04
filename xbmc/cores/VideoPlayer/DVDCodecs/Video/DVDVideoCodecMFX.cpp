@@ -459,13 +459,25 @@ int CDVDVideoCodecMFX::Decode(uint8_t* buffer, int buflen, double dts, double pt
   mfxSyncPoint sync = nullptr;
 
   // Loop over the decoder to ensure all data is being consumed
+  XbmcThreads::EndTime timeout(50); // timeout for DEVICE_BUSY state.
   while (1) 
   {
     MVCBuffer *pInputBuffer = GetBuffer();
     mfxFrameSurface1 *outsurf = nullptr;
     sts = MFXVideoDECODE_DecodeFrameAsync(m_mfxSession, bFlush ? nullptr : &bs, &pInputBuffer->surface, &outsurf, &sync);
 
-    if (sts == MFX_ERR_INCOMPATIBLE_VIDEO_PARAM) 
+    if (sts == MFX_WRN_DEVICE_BUSY)
+    {
+      if (timeout.IsTimePast())
+      {
+        CLog::Log(LOGERROR, "%s: Decoder did not respond within possible time, resetting decoder.", __FUNCTION__);
+        return VC_FLUSHED;
+      }
+      Sleep(10);
+      continue;
+    }
+
+    if (sts == MFX_ERR_INCOMPATIBLE_VIDEO_PARAM)
     {
       m_buff.clear();
       bFlush = true;
