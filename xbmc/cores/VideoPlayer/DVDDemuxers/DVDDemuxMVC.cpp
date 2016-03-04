@@ -85,6 +85,7 @@ bool CDVDDemuxMVC::Open(CDVDInputStream* pInput)
     return false;
   }
 
+  av_opt_set_int(m_pFormatContext, "analyzeduration", 500000, 0);
   av_opt_set_int(m_pFormatContext, "correct_ts_overflow", 0, 0);
   m_pFormatContext->flags |= AVFMT_FLAG_KEEP_SIDE_DATA;
 
@@ -155,10 +156,7 @@ DemuxPacket* CDVDDemuxMVC::Read()
     if (ret == AVERROR(EINTR) || ret == AVERROR(EAGAIN))
       continue;
     else if (ret == AVERROR_EOF)
-    {
-      CLog::Log(LOGDEBUG, "%s: EOF reading MVC extension data", __FUNCTION__);
       break;
-    }
     else if (mvcPacket.size <= 0 || mvcPacket.stream_index != m_nStreamIndex)
     {
       av_packet_unref(&mvcPacket);

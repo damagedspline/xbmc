@@ -24,7 +24,8 @@
 #include "DVDDemuxUtils.h"
 #include "utils/log.h"
 
-//#define DEBUG_VERBOSE
+#define DEBUG_VERBOSE
+#define MVC_QUEUE_SIZE 100
 
 DemuxPacket* CDVDDemuxStreamSSIF::AddPacket(DemuxPacket* &srcPkt)
 {
@@ -82,12 +83,9 @@ DemuxPacket* CDVDDemuxStreamSSIF::MergePacket(DemuxPacket* &srcPkt, DemuxPacket*
 
 DemuxPacket* CDVDDemuxStreamSSIF::GetMVCPacket()
 {
-  // if input is a bluray and mvc queue is empty let's fill mvc queue firstly
-  if (m_bluRay && m_MVCqueue.empty() && !m_H264queue.empty())
+  // if input is a bluray fill mvc queue before processing
+  if (m_bluRay && !m_H264queue.empty())
   {
-#if defined(DEBUG_VERBOSE)
-    CLog::Log(LOGDEBUG, ">>> MVC queue is empty. Filling...", m_MVCqueue.size(), m_H264queue.size());
-#endif
     FillMVCQueue(m_H264queue.front()->dts);
   }
 
@@ -174,36 +172,23 @@ bool CDVDDemuxStreamSSIF::FillMVCQueue(double dtsBase)
   if (!m_bluRay)
     return false;
 
-  int count = 0;
-  bool found = (dtsBase == DVD_NOPTS_VALUE);
   CDVDDemux* demux = m_bluRay->GetDemuxMVC();
-
-  while (count < 100)
+  DemuxPacket* mvc;
+  while ((m_MVCqueue.size() < MVC_QUEUE_SIZE) && (mvc = demux->Read()))
   {
-    DemuxPacket* mvcPacket = demux->Read();
-    if (!mvcPacket)
-      break;
-
-    if (dtsBase == DVD_NOPTS_VALUE || mvcPacket->dts == DVD_NOPTS_VALUE)
+    if (dtsBase == DVD_NOPTS_VALUE || mvc->dts == DVD_NOPTS_VALUE)
     {
       // do nothing, can't compare timestamps when they are not set
     }
-    else if (mvcPacket->dts < dtsBase)
+    else if (mvc->dts < dtsBase)
     {
 #if defined(DEBUG_VERBOSE)
-      CLog::Log(LOGDEBUG, ">>> MVC discard mvc: %6d, pts(%.3f) dts(%.3f)", mvcPacket->iSize, mvcPacket->pts*1e-6, mvcPacket->dts*1e-6);
+      CLog::Log(LOGDEBUG, ">>> MVC discard mvc: %6d, pts(%.3f) dts(%.3f)", mvc->iSize, mvc->pts*1e-6, mvc->dts*1e-6);
 #endif
-      CDVDDemuxUtils::FreeDemuxPacket(mvcPacket);
+      CDVDDemuxUtils::FreeDemuxPacket(mvc);
       continue;
     }
-    else if (mvcPacket->dts == dtsBase)
-    {
-      found = true;
-    }
-
-    AddMVCExtPacket(mvcPacket);
-    count++;
+    AddMVCExtPacket(mvc);
   };
-
-  return found;
+  return m_MVCqueue.size() == MVC_QUEUE_SIZE;
 }
