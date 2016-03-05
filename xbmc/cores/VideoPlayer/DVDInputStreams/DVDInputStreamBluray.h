@@ -156,6 +156,7 @@ protected:
   int                 m_nMVCSubPathIndex = 0;
   int                 m_nMVCClip = -1;
   bool                m_bFlipEyes = false;
+  uint64_t            m_clipStartTime = 0;
 
   typedef std::shared_ptr<CDVDOverlayImage> SOverlay;
   typedef std::list<SOverlay>                 SOverlays;

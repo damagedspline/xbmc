@@ -84,10 +84,8 @@ DemuxPacket* CDVDDemuxStreamSSIF::MergePacket(DemuxPacket* &srcPkt, DemuxPacket*
 DemuxPacket* CDVDDemuxStreamSSIF::GetMVCPacket()
 {
   // if input is a bluray fill mvc queue before processing
-  if (m_bluRay && !m_H264queue.empty())
-  {
+  if (m_bluRay && m_MVCqueue.empty() && !m_H264queue.empty())
     FillMVCQueue(m_H264queue.front()->dts);
-  }
 
   // Here, we recreate a h264 MVC packet from the base one + buffered MVC NALU's
   while (!m_H264queue.empty() && !m_MVCqueue.empty())
