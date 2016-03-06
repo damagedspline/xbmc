@@ -203,6 +203,7 @@ bool CDVDDemuxMVC::SeekTime(int time, bool backwords, double* startpts)
     seek_pts -= MVC_SEEK_TIME_WINDOW;
 
   av_seek_frame(m_pFormatContext, m_nStreamIndex, seek_pts, AVSEEK_FLAG_BACKWARD);
+  return true;
 }
 
 std::string CDVDDemuxMVC::GetFileName()
