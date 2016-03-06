@@ -417,9 +417,16 @@ bool CDVDInputStreamBluray::Open()
       CLog::Log(LOGERROR, "CDVDInputStreamBluray::Open - failed to get title info");
       return false;
     }
-    if (!SetTitle(m_title->playlist))
+    if (m_dll->bd_select_playlist(m_bd, m_title->playlist) == 0)
+    {
+      CLog::Log(LOGERROR, "CDVDInputStreamBluray::Open - failed to select title %d", m_title->idx);
       return false;
+    }
   }
+
+  // Process any events that occured during opening
+  while (m_dll->bd_get_event(m_bd, &m_event))
+    ProcessEvent();
 
   return true;
 }
@@ -509,7 +516,7 @@ void CDVDInputStreamBluray::ProcessEvent() {
     CLog::Log(LOGDEBUG, "CDVDInputStreamBluray - BD_EVENT_PLAYLIST %d",
         m_event.param);
     m_playlist = m_event.param;
-    SetTitle(m_playlist, true);
+    ProcessItem(m_playlist);
     break;
 
   case BD_EVENT_PLAYITEM:
@@ -1146,18 +1153,12 @@ bool CDVDInputStreamBluray::HasMenu()
   return m_navmode;
 }
 
-bool CDVDInputStreamBluray::SetTitle(int playitem, bool isEvent /*= false*/)
+bool CDVDInputStreamBluray::ProcessItem(int playitem)
 {
   if (m_title)
     m_dll->bd_free_title_info(m_title);
   
   m_title = m_dll->bd_get_playlist_info(m_bd, playitem, m_angle);
-
-  if (!isEvent && m_dll->bd_select_playlist(m_bd, playitem) == 0)
-  {
-    CLog::Log(LOGERROR, "CDVDInputStreamBluray::Open - failed to select title %d", m_title->idx);
-    return false;
-  }
 
   if (CSettings::GetInstance().GetBool("videoplayer.supportmvc"))
   {
@@ -1169,8 +1170,8 @@ bool CDVDInputStreamBluray::SetTitle(int playitem, bool isEvent /*= false*/)
         if (mpls->ext_sub_path[i].type == 8
           && mpls->ext_sub_path[i].sub_playitem_count == mpls->list_count)
         {
-          CLog::Log(LOGDEBUG, "CDVDInputStreamBluray::SetTitle - Enabling BD3D MVC demuxing");
-          CLog::Log(LOGDEBUG, "CDVDInputStreamBluray::SetTitle - MVC_Base_view_R_flag: %d", m_title->mvc_base_view_r_flag);
+          CLog::Log(LOGDEBUG, "CDVDInputStreamBluray - Enabling BD3D MVC demuxing");
+          CLog::Log(LOGDEBUG, "CDVDInputStreamBluray - MVC_Base_view_R_flag: %d", m_title->mvc_base_view_r_flag);
           m_bMVCPlayback = true;
           m_nMVCSubPathIndex = i;
           m_bFlipEyes = m_title->mvc_base_view_r_flag != 0;
@@ -1179,12 +1180,7 @@ bool CDVDInputStreamBluray::SetTitle(int playitem, bool isEvent /*= false*/)
       }
     }
   }
-  m_clip = 0;
-
   CloseMVCDemux();
-  /*if (m_bMVCPlayback && !m_navmode)
-    OpenMVCDemux(m_clip);*/
-
   return true;
 }
 

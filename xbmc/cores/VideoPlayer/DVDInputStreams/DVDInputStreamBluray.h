@@ -131,7 +131,7 @@ protected:
   void OverlayClose();
   static void OverlayClear(SPlane& plane, int x, int y, int w, int h);
   static void OverlayInit (SPlane& plane, int w, int h);
-  bool SetTitle(int idx, bool isEvent = false);
+  bool ProcessItem(int playitem);
 
   bool OpenMVCDemux(int playItem);
   bool CloseMVCDemux();
