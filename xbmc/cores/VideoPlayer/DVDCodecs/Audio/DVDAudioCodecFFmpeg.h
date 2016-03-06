@@ -43,7 +43,7 @@ public:
   virtual int GetData(uint8_t** dst);
   virtual void Reset();
   virtual AEAudioFormat GetFormat() { return m_format; }
-  virtual const char* GetName() { return "FFmpeg"; }
+  virtual const char* GetName() { return m_codecname.c_str(); }
   virtual enum AVMatrixEncoding GetMatrixEncoding();
   virtual enum AVAudioServiceType GetAudioServiceType();
   virtual int GetProfile();
@@ -66,6 +66,7 @@ protected:
 
   int m_channels;
   uint64_t m_layout;
+  std::string m_codecname;
 
   void BuildChannelMap();
   void ConvertToFloat();
