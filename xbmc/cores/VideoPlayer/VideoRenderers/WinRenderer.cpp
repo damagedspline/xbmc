@@ -625,6 +625,11 @@ void CWinRenderer::UpdatePSVideoFilter()
 
     // we're in big trouble - fallback to sw method
     m_renderMethod = RENDER_SW;
+    if (m_NumYV12Buffers)
+    {
+      m_NumYV12Buffers = 0;
+      ManageTextures();
+    }
     SelectSWVideoFilter();
   }
 }
