@@ -29,6 +29,7 @@
 #include "threads/Event.h"
 
 class CProcessInfo;
+class CMVCPicture;
 
 namespace DXVA {
 
@@ -73,6 +74,7 @@ class CRenderPicture
   : public IDVDResourceCounted<CRenderPicture>
 {
 public:
+  CRenderPicture(CMVCPicture *pMVCPicture);
   CRenderPicture(CSurfaceContext *context);
   ~CRenderPicture();
   ID3D11View*      view = nullptr;
@@ -80,6 +82,7 @@ public:
 
 protected:
   CSurfaceContext *surface_context;
+  CMVCPicture*     mvcPicture;
 };
 
 class CDecoder;

@@ -30,6 +30,7 @@ if(CORE_SYSTEM_NAME STREQUAL windows)
   list(APPEND HEADERS DXVA.h)
   list(APPEND SOURCES MFXCodec.cpp)
   list(APPEND HEADERS MFXCodec.h)
+  add_subdirectory(mfx)
 endif()
 
 if(VDPAU_FOUND)
