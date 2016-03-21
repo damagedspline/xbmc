@@ -37,6 +37,7 @@
 #include "utils/Log.h"
 #include "utils/StringUtils.h"
 #include "windowing/WindowingFactory.h"
+#include "MFXCodec.h"
 
 using namespace DXVA;
 
@@ -684,15 +685,31 @@ bool CSurfaceContext::HasRefs()
 // DXVA RenderPictures
 //-----------------------------------------------------------------------------
 
+CRenderPicture::CRenderPicture(CMVCPicture *pMVCPicture)
+  : surface_context(nullptr)
+{
+  mvcPicture = pMVCPicture->Acquire();
+};
+
 CRenderPicture::CRenderPicture(CSurfaceContext *context)
+  : mvcPicture(nullptr)
 {
   surface_context = context->Acquire();
-}
+};
 
 CRenderPicture::~CRenderPicture()
 {
-  surface_context->ClearRender(view);
-  surface_context->Release();
+  if (surface_context)
+  {
+    surface_context->ClearRender(view);
+    surface_context->Release();
+  }
+  else if (mvcPicture)
+  {
+    SAFE_RELEASE(view);
+    SAFE_RELEASE(viewEx);
+    SAFE_RELEASE(mvcPicture);
+  }
 }
 
 //-----------------------------------------------------------------------------
