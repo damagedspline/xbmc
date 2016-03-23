@@ -1123,7 +1123,7 @@ CRenderInfo CWinRenderer::GetRenderInfo()
       info.m_deintMethods.push_back(VS_INTERLACEMETHOD_DXVA_AUTO);
   }
   else
-    info.optimal_buffer_size = 4;
+    info.optimal_buffer_size = m_format == RENDER_FMT_MSDK_MVC ? 5 : 4;
   return info;
 }
 
