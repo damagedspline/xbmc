@@ -134,22 +134,22 @@ public:
   CDVDVideoCodecMFX(CProcessInfo &processInfo);
   virtual ~CDVDVideoCodecMFX();
 
-  virtual bool Open(CDVDStreamInfo &hints, CDVDCodecOptions &options);
-  virtual void Dispose() { DestroyDecoder(true); }
-  virtual int Decode(uint8_t* pData, int iSize, double dts, double pts);
-  virtual void Reset() { Flush(); };
-  virtual bool GetPicture(DVDVideoPicture* pDvdVideoPicture);
-  virtual void SetDropState(bool bDrop) {};
-  virtual const char* GetName() { return "msdk-mvc"; };
+  bool Open(CDVDStreamInfo &hints, CDVDCodecOptions &options) override;
+  void Dispose() override { DestroyDecoder(true); }
+  int Decode(uint8_t* pData, int iSize, double dts, double pts) override;
+  void Reset() override { Flush(); };
+  bool GetPicture(DVDVideoPicture* pDvdVideoPicture) override;
+  void SetDropState(bool bDrop) override {};
+  const char* GetName() override { return "msdk-mvc"; };
 
-  virtual bool ClearPicture(DVDVideoPicture* pDvdVideoPicture) override;
+  bool ClearPicture(DVDVideoPicture* pDvdVideoPicture) override;
   void ReleasePicture(CMVCPicture* pMVCPicture);
-  virtual void SetCodecControl(int flags) override { m_codecControlFlags = flags; }
+  void SetCodecControl(int flags) override { m_codecControlFlags = flags; }
 
 private:
   bool Init();
   bool Flush();
-  bool EndOfStream();
+  bool ProcessSyncQueue();
   void DestroyDecoder(bool bFull);
   bool AllocateMVCExtBuffers();
   void SetStereoMode(CDVDStreamInfo &hints);
@@ -159,6 +159,7 @@ private:
   void ReleaseBuffer(mfxFrameSurface1 * pSurface);
 
   int HandleOutput(MVCBuffer * pOutputBuffer);
+  void ProcessOutput();
   void SyncOutput(MVCBuffer * pBaseView, MVCBuffer * pExtraView);
   MVCBuffer * AllocateBuffer();
 
@@ -179,9 +180,10 @@ private:
   std::vector<BYTE>    m_buff;
   CAnnexBConverter    *m_pAnnexBConverter = nullptr;
 
-  MVCBuffer           *m_pOutputQueue[ASYNC_DEPTH];
-  int                  m_nOutputQueuePosition = 0;
+  std::queue<MVCBuffer*> m_baseViewQueue;
+  std::queue<MVCBuffer*> m_extViewQueue;
   std::queue<CMVCPicture*> m_renderQueue;
   std::string          m_stereoMode;
   int                  m_codecControlFlags = 0;
+  bool                 m_allowDrop = false;
 };

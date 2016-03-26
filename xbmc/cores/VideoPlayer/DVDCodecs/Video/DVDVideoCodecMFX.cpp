@@ -123,7 +123,6 @@ fail:
 CDVDVideoCodecMFX::CDVDVideoCodecMFX(CProcessInfo &processInfo) : CDVDVideoCodec(processInfo)
 {
   m_mfxSession = nullptr;
-  memset(m_pOutputQueue, 0, sizeof(m_pOutputQueue));
   memset(&m_mfxExtMVCSeq, 0, sizeof(m_mfxExtMVCSeq));
   Init();
 }
@@ -180,11 +179,16 @@ void CDVDVideoCodecMFX::DestroyDecoder(bool bFull)
 
   {
     CSingleLock lock(m_BufferCritSec);
-    for (int i = 0; i < ASYNC_DEPTH; i++)
-      if (m_pOutputQueue[i])
-        ReleaseBuffer(&m_pOutputQueue[i]->surface);
-
-    memset(m_pOutputQueue, 0, sizeof(m_pOutputQueue));
+    while (!m_baseViewQueue.empty())
+    {
+      ReleaseBuffer(&m_baseViewQueue.front()->surface);
+      m_baseViewQueue.pop();
+    }
+    while (!m_extViewQueue.empty())
+    {
+      ReleaseBuffer(&m_extViewQueue.front()->surface);
+      m_extViewQueue.pop();
+    }
     while (!m_renderQueue.empty())
     {
       ReleasePicture(m_renderQueue.front());
@@ -575,6 +579,9 @@ int CDVDVideoCodecMFX::Decode(uint8_t* buffer, int buflen, double dts, double pt
     result = VC_ERROR;
   }
 
+  if (m_codecControlFlags & DVD_CODEC_CTRL_DRAIN) 
+    ProcessSyncQueue();
+
   if (!m_renderQueue.empty())
     result |= VC_PICTURE;
   if (sts == MFX_ERR_MORE_DATA && !(m_codecControlFlags & DVD_CODEC_CTRL_DRAIN))
@@ -587,27 +594,41 @@ int CDVDVideoCodecMFX::Decode(uint8_t* buffer, int buflen, double dts, double pt
 
 int CDVDVideoCodecMFX::HandleOutput(MVCBuffer * pOutputBuffer)
 {
-  int nCur = m_nOutputQueuePosition, nNext = (m_nOutputQueuePosition + 1) % ASYNC_DEPTH;
+  if (pOutputBuffer->surface.Info.FrameId.ViewId == 0)
+    m_baseViewQueue.push(pOutputBuffer);
+  else if (pOutputBuffer->surface.Info.FrameId.ViewId > 0)
+    m_extViewQueue.push(pOutputBuffer);
 
-  if (m_pOutputQueue[nCur] && m_pOutputQueue[nNext]) 
-  {
-    SyncOutput(m_pOutputQueue[nCur], m_pOutputQueue[nNext]);
-    m_pOutputQueue[nCur] = nullptr;
-    m_pOutputQueue[nNext] = nullptr;
-  }
-  else if (m_pOutputQueue[nCur]) 
-  {
-    CLog::Log(LOGDEBUG, "%s: Dropping unpaired frame", __FUNCTION__);
-
-    ReleaseBuffer(&m_pOutputQueue[nCur]->surface);
-    m_pOutputQueue[nCur]->sync = nullptr;
-    m_pOutputQueue[nCur] = nullptr;
-  }
-
-  m_pOutputQueue[nCur] = pOutputBuffer;
-  m_nOutputQueuePosition = nNext;
+  while (m_baseViewQueue.size() > ASYNC_DEPTH >> 1 
+      || m_extViewQueue.size()  > ASYNC_DEPTH >> 1 )
+      ProcessOutput();
 
   return 0;
+}
+
+void CDVDVideoCodecMFX::ProcessOutput()
+{
+  MVCBuffer* pBaseView = m_baseViewQueue.front();
+  MVCBuffer* pExtraView = m_extViewQueue.front();
+  if (pBaseView->surface.Data.FrameOrder == pExtraView->surface.Data.FrameOrder)
+  {
+    SyncOutput(pBaseView, pExtraView);
+    m_baseViewQueue.pop();
+    m_extViewQueue.pop();
+  }
+  // drop unpaired frames
+  else if (pBaseView->surface.Data.FrameOrder < pExtraView->surface.Data.FrameOrder)
+  {
+    ReleaseBuffer(&pBaseView->surface);
+    pBaseView->sync = nullptr;
+    m_baseViewQueue.pop();
+  }
+  else if (pBaseView->surface.Data.FrameOrder > pExtraView->surface.Data.FrameOrder)
+  {
+    ReleaseBuffer(&pExtraView->surface);
+    pExtraView->sync = nullptr;
+    m_extViewQueue.pop();
+  }
 }
 
 #define RINT(x) ((x) >= 0 ? ((int)((x) + 0.5)) : ((int)((x) - 0.5)))
@@ -737,53 +758,36 @@ bool CDVDVideoCodecMFX::Flush()
   {
     if (m_bDecodeReady)
       MFXVideoDECODE_Reset(m_mfxSession, &m_mfxVideoParams);
+
     while (!m_renderQueue.empty())
     {
       ReleasePicture(m_renderQueue.front());
       m_renderQueue.pop();
     }
-    // TODO: decode sequence data
-    for (int i = 0; i < ASYNC_DEPTH; i++) 
-      ReleaseBuffer(&m_pOutputQueue[i]->surface);
-
-    memset(m_pOutputQueue, 0, sizeof(m_pOutputQueue));
-    m_nOutputQueuePosition = 0;
-
-    if (m_bDecodeReady)
-      MFXVideoDECODE_Init(m_mfxSession, &m_mfxVideoParams);
+    while (!m_baseViewQueue.empty())
+    {
+      ReleaseBuffer(&m_baseViewQueue.front()->surface);
+      m_baseViewQueue.pop();
+    }
+    while (!m_extViewQueue.empty())
+    {
+      ReleaseBuffer(&m_extViewQueue.front()->surface);
+      m_extViewQueue.pop();
+    }
   }
 
   return true;
 }
 
-bool CDVDVideoCodecMFX::EndOfStream()
+bool CDVDVideoCodecMFX::ProcessSyncQueue()
 {
   if (!m_bDecodeReady)
     return false;
 
-  // Flush frames out of the decoder
-  Decode(nullptr, 0, 0, 0);
-
   // Process all remaining frames in the queue
-  for (int i = 0; i < ASYNC_DEPTH; i++) 
-  {
-    int nCur = (m_nOutputQueuePosition + i) % ASYNC_DEPTH, nNext = (m_nOutputQueuePosition + i + 1) % ASYNC_DEPTH;
-    if (m_pOutputQueue[nCur] && m_pOutputQueue[nNext]) 
-    {
-      SyncOutput(m_pOutputQueue[nCur], m_pOutputQueue[nNext]);
-      m_pOutputQueue[nCur] = nullptr;
-      m_pOutputQueue[nNext] = nullptr;
-      i++;
-    }
-    else if (m_pOutputQueue[nCur]) 
-    {
-      CLog::Log(LOGDEBUG, "%s: Dropping unpaired frame", __FUNCTION__);
-
-      ReleaseBuffer(&m_pOutputQueue[nCur]->surface);
-      m_pOutputQueue[nCur] = nullptr;
-    }
-  }
-  m_nOutputQueuePosition = 0;
+  while(!m_baseViewQueue.empty() 
+     && !m_extViewQueue.empty()) 
+     ProcessOutput();
 
   return true;
 }
