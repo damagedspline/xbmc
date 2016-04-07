@@ -656,6 +656,13 @@ void CDVDInputStreamBluray::ProcessEvent() {
   }
 }
 
+void CDVDInputStreamBluray::DisableExtention()
+{
+  CloseMVCDemux();
+  m_bMVCDisabled = true;
+  m_bMVCPlayback = false;
+}
+
 int CDVDInputStreamBluray::Read(uint8_t* buf, int buf_size)
 {
   int result = 0;
