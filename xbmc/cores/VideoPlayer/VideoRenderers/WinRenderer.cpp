@@ -1403,12 +1403,13 @@ bool YUVBuffer::CopyFromPicture(DVDVideoPicture &picture)
   {
     return CopyFromDXVA(reinterpret_cast<ID3D11VideoDecoderOutputView*>(picture.dxva->view));
   }
+#ifdef HAVE_LIBMFX
   else if (picture.format == RENDER_FMT_MSDK_MVC)
   {
     return CopyFromMVC(strcmp(picture.stereo_mode, "block_rl") ? picture.mvc->baseView : picture.mvc->extraView,
                        strcmp(picture.stereo_mode, "block_rl") ? picture.mvc->extraView : picture.mvc->baseView);
   }
-
+#endif // HAVE_LIBMFX
   return false;
 }
 
@@ -1510,6 +1511,7 @@ void YUVBuffer::PerformCopy()
 
 bool YUVBuffer::CopyFromMVC(MVCBuffer* baseView, MVCBuffer* extraView)
 {
+#ifdef HAVE_LIBMFX
   // copy base frame
   uint8_t*  src1[] = { baseView->surface.Data.Y, baseView->surface.Data.UV };
   int srcStride1[] = { baseView->surface.Data.PitchLow, baseView->surface.Data.PitchLow };
@@ -1524,7 +1526,7 @@ bool YUVBuffer::CopyFromMVC(MVCBuffer* baseView, MVCBuffer* extraView)
   int dstStride2[] = { stereo[PLANE_Y].rect.RowPitch, stereo[PLANE_UV].rect.RowPitch };
 
   copy_nv12(src2, srcStride2, m_height, m_width, dst2, dstStride2);
-
+#endif // HAVE_LIBMFX
   return true;
 }
 

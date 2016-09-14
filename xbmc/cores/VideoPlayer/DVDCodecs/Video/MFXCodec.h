@@ -20,6 +20,8 @@
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#if defined(HAVE_LIBMFX)
+
 #include "DVDVideoCodec.h"
 #include "DVDResource.h"
 #include "threads/Event.h"
@@ -219,3 +221,5 @@ private:
   mfxFrameAllocResponse m_mfxResponse;
   uint8_t m_shared = 0;
 };
+
+#endif // HAVE_MFX
