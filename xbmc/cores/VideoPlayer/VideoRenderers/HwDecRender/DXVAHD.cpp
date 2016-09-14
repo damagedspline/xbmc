@@ -435,7 +435,10 @@ CRenderPicture *CProcessorHD::Convert(DVDVideoPicture &picture)
     && picture.format != RENDER_FMT_YUV420P16
     && picture.format != RENDER_FMT_DXVA
     && picture.format != RENDER_FMT_NV12
-    && picture.format != RENDER_FMT_MSDK_MVC)
+#ifdef HAVE_LIBMFX
+    && picture.format != RENDER_FMT_MSDK_MVC
+#endif // HAVE_LIBMFX
+    )
   {
     CLog::Log(LOGERROR, "%s: colorspace not supported by processor, skipping frame.", __FUNCTION__);
     return nullptr;
@@ -444,6 +447,7 @@ CRenderPicture *CProcessorHD::Convert(DVDVideoPicture &picture)
   if (picture.format == RENDER_FMT_DXVA)
     return picture.dxva->Acquire();
 
+#ifdef HAVE_LIBMFX
   // MVC with HW surfaces
   if (picture.format == RENDER_FMT_MSDK_MVC && picture.extended_format == RENDER_FMT_DXVA)
   {
@@ -465,6 +469,7 @@ CRenderPicture *CProcessorHD::Convert(DVDVideoPicture &picture)
     picture.mvc->MarkRender();
     return pPicture;
   }
+#endif // HAVE_LIBMFX
 
   ID3D11View *pView = m_context->GetFree(nullptr)
            , *pViewEx = nullptr;
@@ -517,6 +522,7 @@ CRenderPicture *CProcessorHD::Convert(DVDVideoPicture &picture)
   {
     copy_nv12(picture.data, picture.iLineSize, picture.iHeight, picture.iWidth, dst, dstStride);
   }
+#ifdef HAVE_LIBMFX
   else if (picture.format == RENDER_FMT_MSDK_MVC)
   {
     MVCBuffer *baseView = strcmp(picture.stereo_mode, "block_rl") ? picture.mvc->baseView : picture.mvc->extraView,
@@ -544,6 +550,7 @@ CRenderPicture *CProcessorHD::Convert(DVDVideoPicture &picture)
       pContext->Unmap(pResourceEx, 0);
     }
   }
+#endif
   pContext->Unmap(pResource, 0);
   SAFE_RELEASE(pResource);
   SAFE_RELEASE(pResourceEx);

@@ -688,7 +688,9 @@ bool CSurfaceContext::HasRefs()
 CRenderPicture::CRenderPicture(CMVCPicture *pMVCPicture)
   : surface_context(nullptr)
 {
+#ifdef HAVE_LIBMFX
   mvcPicture = pMVCPicture->Acquire();
+#endif // HAVE_LIBMFX
 };
 
 CRenderPicture::CRenderPicture(CSurfaceContext *context)
@@ -704,12 +706,14 @@ CRenderPicture::~CRenderPicture()
     surface_context->ClearRender(view);
     surface_context->Release();
   }
+#ifdef HAVE_LIBMFX
   else if (mvcPicture)
   {
     SAFE_RELEASE(view);
     SAFE_RELEASE(viewEx);
     SAFE_RELEASE(mvcPicture);
   }
+#endif // HAVE_LIBMFX
 }
 
 //-----------------------------------------------------------------------------

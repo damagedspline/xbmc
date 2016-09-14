@@ -29,9 +29,7 @@
 #include "ServiceBroker.h"
 
 #include "Video/DVDVideoCodecFFmpeg.h"
-#if defined(TARGET_WINDOWS)
 #include "Video/MFXCodec.h"
-#endif
 #include "Video/DVDVideoCodecOpenMax.h"
 #if defined(HAS_IMXVPU)
 #include "Video/DVDVideoCodecIMX.h"

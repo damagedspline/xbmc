@@ -133,6 +133,7 @@ set(optional_deps Alsa
                   DBus
                   LCMS2
                   MDNS
+                  MFX
                   MicroHttpd
                   MySqlClient
                   PulseAudio
