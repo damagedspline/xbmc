@@ -415,14 +415,11 @@ bool CMFXCodec::Open(CDVDStreamInfo &hints, CDVDCodecOptions &options)
     m_context = new CMVCContext();
 
     int result = Decode(pSequenceHeader, cbSequenceHeader, DVD_NOPTS_VALUE, DVD_NOPTS_VALUE);
-
     free(pSequenceHeader);
     if (result == VC_ERROR)
       goto fail;
 
     m_pAnnexBConverter->SetNALUSize(naluSize);
-    SetStereoMode(hints);
-    return true;
   }
   else if (hints.codec_tag == MKTAG('A', 'M', 'V', 'C'))
   {
@@ -435,9 +432,20 @@ bool CMFXCodec::Open(CDVDStreamInfo &hints, CDVDCodecOptions &options)
       if (result == VC_ERROR)
         goto fail;
     }
-    SetStereoMode(hints);
-    return true;
   }
+  else
+    goto fail;
+
+  if (hints.stereo_mode != "block_lr" && hints.stereo_mode != "block_rl")
+    hints.stereo_mode = "block_lr";
+  m_stereoMode = hints.stereo_mode;
+
+  m_processInfo.SetVideoDimensions(hints.width, hints.height);
+  m_processInfo.SetVideoDAR(hints.aspect);
+  m_processInfo.SetVideoDecoderName(GetName(), (m_impl & 0xF) >= MFX_IMPL_HARDWARE);
+  m_processInfo.SetVideoDeintMethod("none");
+
+  return true;
 
 fail:
   // reset stereo mode if it was set
@@ -672,6 +680,7 @@ int CMFXCodec::Decode(uint8_t* buffer, int buflen, double dts, double pts)
 
       CLog::Log(LOGDEBUG, "%s: Initialized MVC with View Ids %d, %d", __FUNCTION__, m_mfxExtMVCSeq.View[0].ViewId, m_mfxExtMVCSeq.View[1].ViewId);
       m_bDecodeReady = true;
+      m_processInfo.SetVideoPixelFormat(m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_VIDEO_MEMORY ? "d3d11_nv12" : "nv12");
     }
   }
 
@@ -952,13 +961,6 @@ bool CMFXCodec::FlushQueue()
     ProcessOutput();
   }
   return true;
-}
-
-void CMFXCodec::SetStereoMode(CDVDStreamInfo &hints)
-{
-  if (hints.stereo_mode != "block_lr" && hints.stereo_mode != "block_rl")
-    hints.stereo_mode = "block_lr";
-  m_stereoMode = hints.stereo_mode;
 }
 
 void CH264Nalu::SetBuffer(const uint8_t* pBuffer, size_t nSize, int nNALSize)

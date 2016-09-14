@@ -187,7 +187,6 @@ private:
   void DestroyDecoder(bool bFull);
   bool AllocateMVCExtBuffers();
   bool AllocateFrames();
-  void SetStereoMode(CDVDStreamInfo &hints);
   int  HandleOutput(MVCBuffer * pOutputBuffer);
   void ProcessOutput();
   void SyncOutput(MVCBuffer * pBaseView, MVCBuffer * pExtraView);
