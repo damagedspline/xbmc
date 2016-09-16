@@ -1217,7 +1217,7 @@ bool CDVDInputStreamBluray::ProcessItem(int playitem)
   
   m_title = m_dll->bd_get_playlist_info(m_bd, playitem, m_angle);
 
-  if (CServiceBroker::GetSettings().GetBool("videoplayer.supportmvc") && !m_bMVCDisabled)
+  if (CServiceBroker::GetSettings().GetBool(CSettings::SETTING_VIDEOPLAYER_SUPPORTMVC) && !m_bMVCDisabled)
   {
     MPLS_PL * mpls = m_dll->bd_get_title_mpls(m_bd);
     if (mpls)
