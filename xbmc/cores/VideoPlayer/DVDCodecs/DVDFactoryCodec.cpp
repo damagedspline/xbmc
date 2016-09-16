@@ -151,7 +151,7 @@ CDVDVideoCodec* CDVDFactoryCodec::CreateVideoCodec(CDVDStreamInfo &hint, CProces
 #elif defined(HAS_MMAL)
     pCodec = OpenCodec(new CMMALVideo(processInfo), hint, options);
 #elif defined(HAVE_LIBMFX)
-    if (CSettings::GetInstance().GetBool("videoplayer.supportmvc") && hint.codec == AV_CODEC_ID_H264)
+    if (CSettings::GetInstance().GetBool(CSettings::SETTING_VIDEOPLAYER_SUPPORTMVC) && hint.codec == AV_CODEC_ID_H264)
     {
       if (hint.codec_tag == MKTAG('M', 'V', 'C', '1') || hint.codec_tag == MKTAG('A', 'M', 'V', 'C'))
       {
