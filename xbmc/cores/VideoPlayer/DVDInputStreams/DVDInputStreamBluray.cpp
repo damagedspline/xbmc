@@ -50,6 +50,7 @@
 #endif
 
 #define LIBBLURAY_BYTESEEK 0
+#define EMPTY_QUEUE(x) { while(!x.empty()) x.pop(); }
 
 using namespace XFILE;
 
@@ -439,6 +440,8 @@ bool CDVDInputStreamBluray::Open()
   while (m_dll->bd_get_event(m_bd, &m_event))
     ProcessEvent();
 
+  OpenNextStream();
+
   return true;
 }
 
@@ -649,10 +652,14 @@ void CDVDInputStreamBluray::ProcessEvent() {
   /* event has been consumed */
   m_event.event = BD_EVENT_NONE;
 
-  if (m_bMVCPlayback && m_clip >= 0 && m_title && m_clip < m_title->clip_count && m_nMVCClip != m_clip)
+  if ( m_bMVCPlayback && m_clip >= 0 
+    && m_title 
+    && m_clip < m_title->clip_count 
+    && m_nMVCClip != m_clip
+    && (m_clipQueue.empty()
+      || m_clip != m_clipQueue.front()))
   {
-    CloseMVCDemux();
-    OpenMVCDemux(m_clip);
+    m_clipQueue.push(m_clip);
   }
 }
 
@@ -974,10 +981,15 @@ bool CDVDInputStreamBluray::PosTime(int ms)
   if(m_dll->bd_seek_time(m_bd, ms * 90) < 0)
     return false;
 
+  EMPTY_QUEUE(m_clipQueue);
   while (m_dll->bd_get_event(m_bd, &m_event))
     ProcessEvent();
 
-  SeekMVCDemux(ms - m_clipStartTime);
+  if (m_bMVCPlayback)
+  {
+    OpenNextStream();
+    SeekMVCDemux(ms - m_clipStartTime);
+  }
   return true;
 }
 
@@ -1002,10 +1014,15 @@ bool CDVDInputStreamBluray::SeekChapter(int ch)
   if(m_title && m_dll->bd_seek_chapter(m_bd, ch-1) < 0)
     return false;
 
+  EMPTY_QUEUE(m_clipQueue);
   while (m_dll->bd_get_event(m_bd, &m_event))
     ProcessEvent();
 
-  SeekMVCDemux(GetChapterPos(ch) * 1000 - m_clipStartTime);
+  if (m_bMVCPlayback)
+  {
+    OpenNextStream();
+    SeekMVCDemux(GetChapterPos(ch) * 1000 - m_clipStartTime);
+  }
   return true;
 }
 
@@ -1239,6 +1256,18 @@ bool CDVDInputStreamBluray::ProcessItem(int playitem)
   }
   CloseMVCDemux();
   return true;
+}
+
+bool CDVDInputStreamBluray::OpenNextStream()
+{
+  if (m_clipQueue.empty())
+    return false;
+
+  int clip = m_clipQueue.front();
+  m_clipQueue.pop();
+
+  CloseMVCDemux();
+  return OpenMVCDemux(clip);
 }
 
 bool CDVDInputStreamBluray::OpenMVCDemux(int playItem)
