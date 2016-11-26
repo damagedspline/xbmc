@@ -21,6 +21,7 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
+#include <system.h>
 #include <sys/stat.h>
 
 #include "XBTFReader.h"
@@ -33,32 +34,32 @@
 #include "platform/win32/PlatformDefs.h"
 #endif
 
-static bool ReadString(FILE* file, char* str, size_t max_length)
+static bool ReadString(XFILE::CFile *file, char* str, size_t max_length)
 {
   if (file == nullptr || str == nullptr || max_length <= 0)
     return false;
 
-  return (fread(str, max_length, 1, file) == 1);
+  return (file->Read(str, max_length) == max_length);
 }
 
-static bool ReadUInt32(FILE* file, uint32_t& value)
+static bool ReadUInt32(XFILE::CFile *file, uint32_t& value)
 {
   if (file == nullptr)
     return false;
 
-  if (fread(&value, sizeof(uint32_t), 1, file) != 1)
+  if (file->Read(&value, sizeof(uint32_t)) != sizeof(uint32_t))
     return false;
 
   value = Endian_SwapLE32(value);
   return true;
 }
 
-static bool ReadUInt64(FILE* file, uint64_t& value)
+static bool ReadUInt64(XFILE::CFile *file, uint64_t& value)
 {
   if (file == nullptr)
     return false;
 
-  if (fread(&value, sizeof(uint64_t), 1, file) != 1)
+  if (file->Read(&value, sizeof(uint64_t)) != sizeof(uint64_t))
     return false;
 
   value = Endian_SwapLE64(value);
@@ -83,15 +84,16 @@ bool CXBTFReader::Open(const std::string& path)
 
   m_path = path;
 
+  std::string strPath = m_path;
 #ifdef TARGET_WINDOWS
-  std::wstring strPathW;
-  g_charsetConverter.utf8ToW(CSpecialProtocol::TranslatePath(m_path), strPathW, false);
-  m_file = _wfopen(strPathW.c_str(), L"rb");
-#else
-  m_file = fopen(m_path.c_str(), "rb");
+  strPath = CSpecialProtocol::TranslatePath(m_path);
 #endif
-  if (m_file == nullptr)
+  m_file = new XFILE::CFile();
+  if (!m_file->Open(strPath))
+  {
+    Close();
     return false;
+  }
 
   // read the magic word
   char magic[4];
@@ -173,7 +175,7 @@ bool CXBTFReader::Open(const std::string& path)
   }
 
   // Sanity check
-  uint64_t pos = static_cast<uint64_t>(ftell(m_file));
+  uint64_t pos = static_cast<uint64_t>(m_file->GetPosition());
   if (pos != GetHeaderSize())
     return false;
 
@@ -189,8 +191,8 @@ void CXBTFReader::Close()
 {
   if (m_file != nullptr)
   {
-    fclose(m_file);
-    m_file = nullptr;
+    m_file->Close();
+    SAFE_DELETE(m_file);
   }
 
   m_path.clear();
@@ -202,8 +204,8 @@ time_t CXBTFReader::GetLastModificationTimestamp() const
   if (m_file == nullptr)
     return 0;
 
-  struct stat fileStat;
-  if (fstat(fileno(m_file), &fileStat) == -1)
+  struct _stat64 fileStat;
+  if (m_file->Stat(&fileStat) == -1)
     return 0;
 
   return fileStat.st_mtime;
@@ -214,14 +216,10 @@ bool CXBTFReader::Load(const CXBTFFrame& frame, unsigned char* buffer) const
   if (m_file == nullptr)
     return false;
 
-#if defined(TARGET_DARWIN) || defined(TARGET_FREEBSD) || defined(TARGET_ANDROID)
-  if (fseeko(m_file, static_cast<off_t>(frame.GetOffset()), SEEK_SET) == -1)
-#else
-  if (fseeko64(m_file, static_cast<off_t>(frame.GetOffset()), SEEK_SET) == -1)
-#endif
+  if (m_file->Seek(frame.GetOffset()) == -1)
     return false;
 
-  if (fread(buffer, 1, static_cast<size_t>(frame.GetPackedSize()), m_file) != frame.GetPackedSize())
+  if (m_file->Read(buffer, static_cast<size_t>(frame.GetPackedSize())) != frame.GetPackedSize())
     return false;
 
   return true;

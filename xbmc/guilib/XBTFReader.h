@@ -26,6 +26,7 @@
 #include <stdint.h>
 
 #include "XBTF.h"
+#include "filesystem/File.h"
 
 class CXBTFReader : public CXBTFBase
 {
@@ -43,7 +44,7 @@ public:
 
 private:
   std::string m_path;
-  FILE* m_file;
+  XFILE::CFile *m_file;
 };
 
 typedef std::shared_ptr<CXBTFReader> CXBTFReaderPtr;
