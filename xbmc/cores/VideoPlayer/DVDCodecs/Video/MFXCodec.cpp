@@ -873,6 +873,14 @@ bool CMFXCodec::GetPicture(DVDVideoPicture* pDvdVideoPicture)
     pFrame->mvc = pRenderPicture;
 
     m_renderQueue.pop();
+
+    int queued, discard, free;
+    m_processInfo.GetRenderBuffers(queued, discard, free);
+    if (free > 1)
+      g_Windowing.RequestDecodingTime();
+    else
+      g_Windowing.ReleaseDecodingTime();
+
     return true;
   }
   return false;
