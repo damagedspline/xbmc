@@ -88,8 +88,7 @@ bool CRenderSystemDX::InitRenderSystem()
   
   CLog::Log(LOGDEBUG, __FUNCTION__" - Initializing D3D11 Factory...");
 
-  HRESULT hr = CreateDXGIFactory1(__uuidof(IDXGIFactory1), reinterpret_cast<void**>(&m_dxgiFactory));
-  if (FAILED(hr)) 
+  if (FAILED(CreateDXGIFactory1(__uuidof(IDXGIFactory2), reinterpret_cast<void**>(&m_dxgiFactory))))
   {
     CLog::Log(LOGERROR, __FUNCTION__" - D3D11 initialization failed.");
     return false;
@@ -133,7 +132,8 @@ void CRenderSystemDX::SetMonitor(HMONITOR monitor)
 
         // update monitor info
         SAFE_RELEASE(m_pOutput);
-        m_pOutput = pOutput;
+        pOutput->QueryInterface(__uuidof(IDXGIOutput1), reinterpret_cast<void**>(&m_pOutput));
+        SAFE_RELEASE(pOutput);
 
         // check if adapter is changed
         if ( m_adapterDesc.AdapterLuid.HighPart != adapterDesc.AdapterLuid.HighPart 
@@ -220,7 +220,7 @@ void CRenderSystemDX::OnResize(unsigned int width, unsigned int height)
   CreateWindowSizeDependentResources();
 }
 
-void CRenderSystemDX::GetClosestDisplayModeToCurrent(IDXGIOutput* output, DXGI_MODE_DESC* outCurrentDisplayMode, bool useCached /*= false*/)
+void CRenderSystemDX::GetClosestDisplayModeToCurrent(IDXGIOutput1* output, DXGI_MODE_DESC1* displayMode, bool useCached /*= false*/)
 {
   DXGI_OUTPUT_DESC outputDesc;
   output->GetDesc(&outputDesc);
@@ -242,7 +242,7 @@ void CRenderSystemDX::GetClosestDisplayModeToCurrent(IDXGIOutput* output, DXGI_M
     || m_cachedMode.Height != devMode.dmPelsHeight
     || long(refreshRate)   != devMode.dmDisplayFrequency)
   {
-    DXGI_MODE_DESC current;
+    DXGI_MODE_DESC1 current;
     current.Width = devMode.dmPelsWidth;
     current.Height = devMode.dmPelsHeight;
     current.RefreshRate.Numerator = 0;
@@ -252,21 +252,15 @@ void CRenderSystemDX::GetClosestDisplayModeToCurrent(IDXGIOutput* output, DXGI_M
     current.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
     current.ScanlineOrdering = m_interlaced ? DXGI_MODE_SCANLINE_ORDER_UPPER_FIELD_FIRST : DXGI_MODE_SCANLINE_ORDER_PROGRESSIVE;
     current.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
+    current.Stereo = m_bHWStereoEnabled;
 
-    output->FindClosestMatchingMode(&current, &m_cachedMode, m_pD3DDev);
+    output->FindClosestMatchingMode1(&current, &m_cachedMode, m_pD3DDev);
   }
 
-  ZeroMemory(outCurrentDisplayMode, sizeof(DXGI_MODE_DESC));
-  outCurrentDisplayMode->Width = m_cachedMode.Width;
-  outCurrentDisplayMode->Height = m_cachedMode.Height;
-  outCurrentDisplayMode->RefreshRate.Numerator = m_cachedMode.RefreshRate.Numerator;
-  outCurrentDisplayMode->RefreshRate.Denominator = m_cachedMode.RefreshRate.Denominator;
-  outCurrentDisplayMode->Format = m_cachedMode.Format;
-  outCurrentDisplayMode->ScanlineOrdering = m_cachedMode.ScanlineOrdering;
-  outCurrentDisplayMode->Scaling = m_cachedMode.Scaling;
+  memcpy(displayMode, &m_cachedMode, sizeof(DXGI_MODE_DESC1));
 }
 
-void CRenderSystemDX::GetDisplayMode(DXGI_MODE_DESC *mode, bool useCached /*= false*/)
+void CRenderSystemDX::GetDisplayMode(DXGI_MODE_DESC1 *mode, bool useCached /*= false*/)
 {
   GetClosestDisplayModeToCurrent(m_pOutput, mode, useCached);
 }
@@ -291,7 +285,7 @@ void CRenderSystemDX::SetFullScreenInternal()
 
   HRESULT hr = S_OK;
   BOOL bFullScreen;
-  m_pSwapChain->GetFullscreenState(&bFullScreen, nullptr);
+  m_pSwapChain1->GetFullscreenState(&bFullScreen, nullptr);
 
   // full-screen to windowed translation. Only change FS state and return
   if (!!bFullScreen && m_useWindowedDX)
@@ -299,7 +293,7 @@ void CRenderSystemDX::SetFullScreenInternal()
     CLog::Log(LOGDEBUG, "%s - Switching swap chain to windowed mode.", __FUNCTION__);
 
     OnDisplayLost();
-    hr = m_pSwapChain->SetFullscreenState(false, nullptr);
+    hr = m_pSwapChain1->SetFullscreenState(false, nullptr);
     if (SUCCEEDED(hr))
       m_bResizeRequred = true;
     else
@@ -309,7 +303,7 @@ void CRenderSystemDX::SetFullScreenInternal()
   else if (m_bFullScreenDevice && !m_useWindowedDX)
   {
     IDXGIOutput* pOutput = nullptr;
-    m_pSwapChain->GetContainingOutput(&pOutput);
+    m_pSwapChain1->GetContainingOutput(&pOutput);
 
     DXGI_OUTPUT_DESC trgDesc, currDesc;
     m_pOutput->GetDesc(&trgDesc);
@@ -321,7 +315,7 @@ void CRenderSystemDX::SetFullScreenInternal()
       CLog::Log(LOGDEBUG, "%s - Switching swap chain to fullscreen state.", __FUNCTION__);
 
       OnDisplayLost();
-      hr = m_pSwapChain->SetFullscreenState(true, m_pOutput);
+      hr = m_pSwapChain1->SetFullscreenState(true, m_pOutput);
       if (SUCCEEDED(hr))
         m_bResizeRequred = true;
       else
@@ -329,16 +323,14 @@ void CRenderSystemDX::SetFullScreenInternal()
     }
     SAFE_RELEASE(pOutput);
 
-    // do not change modes if hw stereo enabled
-    if (m_bHWStereoEnabled)
-      goto end;
+    DXGI_SWAP_CHAIN_DESC1 scDesc;
+    DXGI_SWAP_CHAIN_FULLSCREEN_DESC scfsDesc;
+    m_pSwapChain1->GetDesc1(&scDesc);
+    m_pSwapChain1->GetFullscreenDesc(&scfsDesc);
 
-    DXGI_SWAP_CHAIN_DESC scDesc;
-    m_pSwapChain->GetDesc(&scDesc);
-
-    DXGI_MODE_DESC currentMode, // closest to current mode
-      toMatchMode,              // required mode
-      matchedMode;              // closest to required mode
+    DXGI_MODE_DESC1 currentMode, // closest to current mode
+      toMatchMode,               // required mode
+      matchedMode;               // closest to required mode
 
     // find current mode on target output
     GetClosestDisplayModeToCurrent(m_pOutput, &currentMode);
@@ -349,17 +341,17 @@ void CRenderSystemDX::SetFullScreenInternal()
     // use backbuffer dimention to find required display mode
     toMatchMode.Width = m_nBackBufferWidth;
     toMatchMode.Height = m_nBackBufferHeight;
-    bool useDefaultRefreshRate = 0 == m_refreshRate;
+    toMatchMode.Format = scDesc.Format;
+    toMatchMode.Stereo = m_bHWStereoEnabled;
+    toMatchMode.Scaling = scfsDesc.Scaling;
+    toMatchMode.ScanlineOrdering = scfsDesc.ScanlineOrdering;
     toMatchMode.RefreshRate.Numerator = 0;
     toMatchMode.RefreshRate.Denominator = 0;
-    if (!useDefaultRefreshRate)
+    if (0.0f != m_refreshRate)
       GetRefreshRatio(static_cast<uint32_t>(m_refreshRate), &toMatchMode.RefreshRate.Numerator, &toMatchMode.RefreshRate.Denominator);
-    toMatchMode.Format = scDesc.BufferDesc.Format;
-    toMatchMode.Scaling = scDesc.BufferDesc.Scaling;
-    toMatchMode.ScanlineOrdering = scDesc.BufferDesc.ScanlineOrdering;
 
     // find closest mode
-    m_pOutput->FindClosestMatchingMode(&toMatchMode, &matchedMode, m_pD3DDev);
+    m_pOutput->FindClosestMatchingMode1(&toMatchMode, &matchedMode, m_pD3DDev);
 
     float matchedRefreshRate = RATIONAL_TO_FLOAT(matchedMode.RefreshRate);
     CLog::Log(LOGDEBUG, "%s - Found matched mode: %dx%d@%0.3f", __FUNCTION__, matchedMode.Width, matchedMode.Height, matchedRefreshRate);
@@ -377,7 +369,13 @@ void CRenderSystemDX::SetFullScreenInternal()
       if (!m_bResizeRequred)
         OnDisplayLost();
 
-      hr = m_pSwapChain->ResizeTarget(&matchedMode);
+      DXGI_MODE_DESC mDesc = { matchedMode.Width, matchedMode.Height };
+      mDesc.Format = matchedMode.Format;
+      mDesc.RefreshRate = matchedMode.RefreshRate;
+      mDesc.Scaling = matchedMode.Scaling;
+      mDesc.ScanlineOrdering = matchedMode.ScanlineOrdering;
+
+      hr = m_pSwapChain1->ResizeTarget(&mDesc);
       if (SUCCEEDED(hr))
         m_bResizeRequred = true;
       else
@@ -428,8 +426,7 @@ void CRenderSystemDX::DeleteDevice()
     (*i)->OnDestroyDevice(DXGI_ERROR_DEVICE_REMOVED == m_nDeviceStatus);
   }
 
-  if (m_pSwapChain)
-    m_pSwapChain->SetFullscreenState(false, nullptr);
+  m_pSwapChain1->SetFullscreenState(false, nullptr);
 
   SAFE_DELETE(m_pGUIShader);
   SAFE_RELEASE(m_pTextureRight);
@@ -454,7 +451,6 @@ void CRenderSystemDX::DeleteDevice()
     m_pImdContext->Flush();
     SAFE_RELEASE(m_pImdContext);
   }
-  SAFE_RELEASE(m_pSwapChain);
   SAFE_RELEASE(m_pSwapChain1);
   SAFE_RELEASE(m_pD3DDev);
 #ifdef _DEBUG
@@ -590,7 +586,7 @@ bool CRenderSystemDX::CreateDevice()
   }
 
   SAFE_RELEASE(m_dxgiFactory);
-  m_adapter->GetParent(__uuidof(IDXGIFactory1), reinterpret_cast<void**>(&m_dxgiFactory));
+  m_adapter->GetParent(__uuidof(IDXGIFactory2), reinterpret_cast<void**>(&m_dxgiFactory));
 
   if (g_advancedSettings.m_useDisplayControlHWStereo)
     UpdateDisplayStereoStatus(true);
@@ -662,13 +658,10 @@ bool CRenderSystemDX::CreateDevice()
                         m_adapterDesc.Description, m_adapterDesc.VendorId, m_adapterDesc.DeviceId, m_featureLevel);
 
     m_RenderRenderer = StringUtils::Format("%S", m_adapterDesc.Description);
-    IDXGIFactory2* dxgiFactory2 = nullptr;
-    m_dxgiFactory->QueryInterface(__uuidof(IDXGIFactory2), reinterpret_cast<void**>(&dxgiFactory2));
     m_RenderVersion = StringUtils::Format("DirectX %s (FL %d.%d)", 
-                                          dxgiFactory2 != nullptr ? "11.1" : "11.0", 
+                                          "11.1",
                                           (m_featureLevel >> 12) & 0xF, 
                                           (m_featureLevel >> 8) & 0xF);
-    SAFE_RELEASE(dxgiFactory2);
   }
 
   m_renderCaps = 0;
@@ -749,28 +742,22 @@ bool CRenderSystemDX::CreateWindowSizeDependentResources()
     return false;
 
   HRESULT hr;
-  DXGI_SWAP_CHAIN_DESC scDesc = { 0 };
+  DXGI_SWAP_CHAIN_DESC1 scDesc = { 0 };
 
   bool bNeedRecreate = false;
   bool bNeedResize   = false;
   bool bHWStereoEnabled = RENDER_STEREO_MODE_HARDWAREBASED == g_graphicsContext.GetStereoMode();
 
-  if (m_pSwapChain)
+  if (m_pSwapChain1)
   {
-    m_pSwapChain->GetDesc(&scDesc);
+    m_pSwapChain1->GetDesc1(&scDesc);
     bNeedResize = m_bResizeRequred || 
-                  m_nBackBufferWidth != scDesc.BufferDesc.Width || 
-                  m_nBackBufferHeight != scDesc.BufferDesc.Height;
+                  m_nBackBufferWidth != scDesc.Width || 
+                  m_nBackBufferHeight != scDesc.Height;
+    bNeedRecreate = (scDesc.Stereo == TRUE) != bHWStereoEnabled;
   }
   else
     bNeedResize = true;
-
-  if (m_pSwapChain1)
-  {
-    DXGI_SWAP_CHAIN_DESC1 scDesc;
-    m_pSwapChain1->GetDesc1(&scDesc);
-    bNeedRecreate = (scDesc.Stereo == TRUE) != bHWStereoEnabled;
-  }
 
   if (!bNeedRecreate && !bNeedResize)
   {
@@ -820,7 +807,6 @@ bool CRenderSystemDX::CreateWindowSizeDependentResources()
 
     CLog::Log(LOGDEBUG, "%s - Destroying swapchain in order to switch %s stereoscopic 3D.", __FUNCTION__, bHWStereoEnabled ? "to" : "from");
 
-    SAFE_RELEASE(m_pSwapChain);
     SAFE_RELEASE(m_pSwapChain1);
     m_pImdContext->ClearState();
     m_pImdContext->Flush();
@@ -831,86 +817,57 @@ bool CRenderSystemDX::CreateWindowSizeDependentResources()
   }
 
   uint32_t scFlags = m_useWindowedDX ? 0 : DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
-  if (!m_pSwapChain)
+  if (!m_pSwapChain1)
   {
     CLog::Log(LOGDEBUG, "%s - Creating swapchain in %s mode.", __FUNCTION__, bHWStereoEnabled ? "Stereoscopic 3D" : "Mono");
 
     // Create swap chain
-    IDXGIFactory2* dxgiFactory2 = nullptr;
-    hr = m_dxgiFactory->QueryInterface(__uuidof(IDXGIFactory2), reinterpret_cast<void**>(&dxgiFactory2));
-    if (SUCCEEDED(hr) && dxgiFactory2)
+    scDesc.Width       = m_nBackBufferWidth;
+    scDesc.Height      = m_nBackBufferHeight;
+    scDesc.BufferCount = 3 * (1 + bHWStereoEnabled);
+    scDesc.Format      = DXGI_FORMAT_B8G8R8A8_UNORM;
+    scDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    scDesc.AlphaMode   = DXGI_ALPHA_MODE_UNSPECIFIED;
+    scDesc.Stereo      = bHWStereoEnabled;
+    scDesc.SwapEffect  = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
+    scDesc.Flags       = scFlags;
+
+    scDesc.SampleDesc.Count = 1;
+    scDesc.SampleDesc.Quality = 0;
+
+    DXGI_SWAP_CHAIN_FULLSCREEN_DESC scFSDesc = { 0 };
+    scFSDesc.ScanlineOrdering = m_interlaced ? DXGI_MODE_SCANLINE_ORDER_UPPER_FIELD_FIRST : DXGI_MODE_SCANLINE_ORDER_PROGRESSIVE;
+    scFSDesc.Windowed         = m_useWindowedDX;
+
+    hr = m_dxgiFactory->CreateSwapChainForHwnd(m_pD3DDev, m_hFocusWnd, &scDesc, &scFSDesc, nullptr, &m_pSwapChain1);
+
+    // some drivers (AMD) are denied to switch in stereoscopic 3D mode, if so then fallback to mono mode
+    if (FAILED(hr) && bHWStereoEnabled)
     {
-      // DirectX 11.1 or later
-      DXGI_SWAP_CHAIN_DESC1 scDesc1 = { 0 };
-      scDesc1.Width       = m_nBackBufferWidth;
-      scDesc1.Height      = m_nBackBufferHeight;
-      scDesc1.BufferCount = 3 * (1 + bHWStereoEnabled);
-      scDesc1.Format      = DXGI_FORMAT_B8G8R8A8_UNORM;
-      scDesc1.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-      scDesc1.AlphaMode   = DXGI_ALPHA_MODE_UNSPECIFIED;
-      scDesc1.Stereo      = bHWStereoEnabled;
-      scDesc1.SwapEffect  = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
-      scDesc1.Flags       = scFlags;
+      // switch to stereo mode failed, create mono swapchain
+      CLog::Log(LOGERROR, "%s - Creating stereo swap chain failed with error: %s.", __FUNCTION__, GetErrorDescription(hr).c_str());
+      CLog::Log(LOGNOTICE, "%s - Fallback to monoscopic mode.", __FUNCTION__);
 
-      scDesc1.SampleDesc.Count = 1;
-      scDesc1.SampleDesc.Quality = 0;
+      scDesc.Stereo = false;
+      bHWStereoEnabled = false;
+      hr = m_dxgiFactory->CreateSwapChainForHwnd(m_pD3DDev, m_hFocusWnd, &scDesc, &scFSDesc, nullptr, &m_pSwapChain1);
 
-      DXGI_SWAP_CHAIN_FULLSCREEN_DESC scFSDesc = { 0 };
-      scFSDesc.ScanlineOrdering = m_interlaced ? DXGI_MODE_SCANLINE_ORDER_UPPER_FIELD_FIRST : DXGI_MODE_SCANLINE_ORDER_PROGRESSIVE;
-      scFSDesc.Windowed         = m_useWindowedDX;
-
-      hr = dxgiFactory2->CreateSwapChainForHwnd(m_pD3DDev, m_hFocusWnd, &scDesc1, &scFSDesc, nullptr, &m_pSwapChain1);
-
-      // some drivers (AMD) are denied to switch in stereoscopic 3D mode, if so then fallback to mono mode
-      if (FAILED(hr) && bHWStereoEnabled)
-      {
-        // switch to stereo mode failed, create mono swapchain
-        CLog::Log(LOGERROR, "%s - Creating stereo swap chain failed with error: %s.", __FUNCTION__, GetErrorDescription(hr).c_str());
-        CLog::Log(LOGNOTICE, "%s - Fallback to monoscopic mode.", __FUNCTION__);
-
-        scDesc1.Stereo = false;
-        bHWStereoEnabled = false;
-        hr = dxgiFactory2->CreateSwapChainForHwnd(m_pD3DDev, m_hFocusWnd, &scDesc1, &scFSDesc, nullptr, &m_pSwapChain1);
-
-        // fallback to split_horisontal mode.
-        g_graphicsContext.SetStereoMode(RENDER_STEREO_MODE_SPLIT_HORIZONTAL);
-      }
-
-      if (SUCCEEDED(hr))
-      {
-        m_pSwapChain1->QueryInterface(__uuidof(IDXGISwapChain), reinterpret_cast<void**>(&m_pSwapChain));
-        // this hackish way to disable stereo in windowed mode:
-        // - restart presenting, 0 in sync interval discards current frame also
-        // - wait until new frame will be drawn
-        // sleep value possible depends on hardware m.b. need a setting in as.xml
-        if (!g_advancedSettings.m_useDisplayControlHWStereo && m_useWindowedDX && !bHWStereoEnabled && m_bHWStereoEnabled)
-        {
-          m_pSwapChain1->Present(0, DXGI_PRESENT_RESTART);
-          Sleep(100);
-        }
-        m_bHWStereoEnabled = bHWStereoEnabled;
-      }
-      dxgiFactory2->Release();
+      // fallback to split_horisontal mode.
+      g_graphicsContext.SetStereoMode(RENDER_STEREO_MODE_SPLIT_HORIZONTAL);
     }
-    else
+
+    if (SUCCEEDED(hr))
     {
-      // DirectX 11.0 systems
-      scDesc.BufferCount  = 3;
-      scDesc.BufferUsage  = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-      scDesc.OutputWindow = m_hFocusWnd;
-      scDesc.Windowed     = m_useWindowedDX;
-      scDesc.SwapEffect   = DXGI_SWAP_EFFECT_SEQUENTIAL;
-      scDesc.Flags        = scFlags;
-
-      scDesc.BufferDesc.Width   = m_nBackBufferWidth;
-      scDesc.BufferDesc.Height  = m_nBackBufferHeight;
-      scDesc.BufferDesc.Format  = DXGI_FORMAT_B8G8R8A8_UNORM;
-      scDesc.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
-      scDesc.BufferDesc.ScanlineOrdering = m_interlaced ? DXGI_MODE_SCANLINE_ORDER_UPPER_FIELD_FIRST : DXGI_MODE_SCANLINE_ORDER_PROGRESSIVE;
-      scDesc.SampleDesc.Count = 1;
-      scDesc.SampleDesc.Quality = 0;
-
-      hr = m_dxgiFactory->CreateSwapChain(m_pD3DDev, &scDesc, &m_pSwapChain);
+      // this hackish way to disable stereo in windowed mode:
+      // - restart presenting, 0 in sync interval discards current frame also
+      // - wait until new frame will be drawn
+      // sleep value possible depends on hardware m.b. need a setting in as.xml
+      if (!g_advancedSettings.m_useDisplayControlHWStereo && m_useWindowedDX && !bHWStereoEnabled && m_bHWStereoEnabled)
+      {
+        m_pSwapChain1->Present(0, DXGI_PRESENT_RESTART);
+        Sleep(100);
+      }
+      m_bHWStereoEnabled = bHWStereoEnabled;
     }
 
     if (FAILED(hr))
@@ -926,7 +883,7 @@ bool CRenderSystemDX::CreateWindowSizeDependentResources()
   else
   {
     // resize swap chain buffers with preserving the existing buffer count and format.
-    hr = m_pSwapChain->ResizeBuffers(scDesc.BufferCount, m_nBackBufferWidth, m_nBackBufferHeight, scDesc.BufferDesc.Format, scFlags);
+    hr = m_pSwapChain1->ResizeBuffers(scDesc.BufferCount, m_nBackBufferWidth, m_nBackBufferHeight, scDesc.Format, scFlags);
     if (FAILED(hr))
     {
       CLog::Log(LOGERROR, "%s - Failed to resize buffers (%s).", __FUNCTION__, GetErrorDescription(hr).c_str());
@@ -937,13 +894,13 @@ bool CRenderSystemDX::CreateWindowSizeDependentResources()
       }
       // wait a bit and try again
       Sleep(50);
-      hr = m_pSwapChain->ResizeBuffers(scDesc.BufferCount, m_nBackBufferWidth, m_nBackBufferHeight, scDesc.BufferDesc.Format, scFlags);
+      hr = m_pSwapChain1->ResizeBuffers(scDesc.BufferCount, m_nBackBufferWidth, m_nBackBufferHeight, scDesc.Format, scFlags);
     }
   }
 
   // Create a render target view
   ID3D11Texture2D* pBackBuffer = nullptr;
-  hr = m_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&pBackBuffer));
+  hr = m_pSwapChain1->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&pBackBuffer));
   if (FAILED(hr))
   {
     CLog::Log(LOGERROR, "%s - Failed to get back buffer (%s).", __FUNCTION__, GetErrorDescription(hr).c_str());
@@ -1211,7 +1168,7 @@ void CRenderSystemDX::PresentRenderImpl(bool rendered)
   FinishCommandList();
   m_pImdContext->Flush();
 
-  hr = m_pSwapChain->Present((m_bVSync ? 1 : 0), 0);
+  hr = m_pSwapChain1->Present((m_bVSync ? 1 : 0), 0);
 
   if (DXGI_ERROR_DEVICE_REMOVED == hr)
   {
@@ -1256,7 +1213,7 @@ bool CRenderSystemDX::BeginRender()
     return false;
 
   HRESULT oldStatus = m_nDeviceStatus;
-  m_nDeviceStatus = m_pSwapChain->Present(0, DXGI_PRESENT_TEST);
+  m_nDeviceStatus = m_pSwapChain1->Present(0, DXGI_PRESENT_TEST);
 
   // handling of return values. 
   switch (m_nDeviceStatus)
@@ -1690,14 +1647,7 @@ void CRenderSystemDX::SetStereoMode(RENDER_STEREO_MODE mode, RENDER_STEREO_VIEW 
 
 bool CRenderSystemDX::GetStereoEnabled() const
 {
-  bool result = false;
-
-  IDXGIFactory2* dxgiFactory2 = nullptr;
-  if (SUCCEEDED(m_dxgiFactory->QueryInterface(__uuidof(IDXGIFactory2), reinterpret_cast<void**>(&dxgiFactory2))))
-    result = dxgiFactory2->IsWindowedStereoEnabled() == TRUE;
-  SAFE_RELEASE(dxgiFactory2);
-
-  return result;
+  return m_dxgiFactory->IsWindowedStereoEnabled() == TRUE;
 }
 
 bool CRenderSystemDX::GetDisplayStereoEnabled() const

@@ -77,7 +77,7 @@ public:
   virtual CRect GetBackBufferRect() { return CRect(0.f, 0.f, static_cast<float>(m_nBackBufferWidth), static_cast<float>(m_nBackBufferHeight)); }
 
   IDXGIOutput* GetCurrentOutput() const { return m_pOutput; }
-  void GetDisplayMode(DXGI_MODE_DESC *mode, bool useCached = false);
+  void GetDisplayMode(DXGI_MODE_DESC1 *mode, bool useCached = false);
   void FinishCommandList(bool bExecute = true) const;
   void FlushGPU() const;
   void RequestDecodingTime();
@@ -114,7 +114,7 @@ protected:
   void OnMove();
   void OnResize(unsigned int width, unsigned int height);
   void SetFullScreenInternal();
-  void GetClosestDisplayModeToCurrent(IDXGIOutput* output, DXGI_MODE_DESC* outCurrentDisplayMode, bool useCached = false);
+  void GetClosestDisplayModeToCurrent(IDXGIOutput1* output, DXGI_MODE_DESC1* displayMode, bool useCached = false);
   void CheckInterlasedStereoView(void);
   void SetMaximumFrameLatency(uint8_t latency = -1) const;
 
@@ -154,13 +154,12 @@ protected:
   bool                        m_inScene{false}; ///< True if we're in a BeginScene()/EndScene() block
   D3D_DRIVER_TYPE             m_driverType{D3D_DRIVER_TYPE_HARDWARE};
   D3D_FEATURE_LEVEL           m_featureLevel{D3D_FEATURE_LEVEL_11_1};
-  IDXGIFactory1*              m_dxgiFactory{nullptr};
+  IDXGIFactory2*              m_dxgiFactory{nullptr};
   ID3D11Device*               m_pD3DDev{nullptr};
   IDXGIAdapter1*              m_adapter{nullptr};
-  IDXGIOutput*                m_pOutput{nullptr};
+  IDXGIOutput1*               m_pOutput{nullptr};
   ID3D11DeviceContext*        m_pContext{nullptr};
   ID3D11DeviceContext*        m_pImdContext{nullptr};
-  IDXGISwapChain*             m_pSwapChain{nullptr};
   IDXGISwapChain1*            m_pSwapChain1{nullptr};
   ID3D11RenderTargetView*     m_pRenderTargetView{nullptr};
   ID3D11DepthStencilState*    m_depthStencilState{nullptr};
@@ -182,7 +181,7 @@ protected:
   bool                        m_bResizeRequred{false};
   bool                        m_bHWStereoEnabled{false};
   // improve get current mode
-  DXGI_MODE_DESC              m_cachedMode;
+  DXGI_MODE_DESC1             m_cachedMode;
 #ifdef _DEBUG
   ID3D11Debug*                m_d3dDebug{nullptr};
 #endif
