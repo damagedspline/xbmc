@@ -68,9 +68,11 @@ struct DVDVideoPicture
     struct {
       DXVA::CRenderPicture* dxva;
     };
+#if defined(HAVE_LIBMFX)
     struct {
       CMVCPicture* mvc;
     };
+#endif
     struct {
       VDPAU::CVdpauRenderPicture* vdpau;
     };
@@ -126,6 +128,8 @@ struct DVDVideoPicture
   unsigned int iHeight;
   unsigned int iDisplayWidth;           //< width of the picture without black bars
   unsigned int iDisplayHeight;          //< height of the picture without black bars
+  uint8_t*     hdr_data;                //< display mastering side data
+  int          hdr_data_size;           //< size of display mastering side data
 
   ERenderFormat format;
 };

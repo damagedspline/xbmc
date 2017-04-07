@@ -933,7 +933,36 @@ bool CDVDVideoCodecFFmpeg::GetPictureCommon(DVDVideoPicture* pDvdVideoPicture)
   m_requestSkipDeint = false;
   pDvdVideoPicture->iFlags |= m_codecControlFlags;
 
+  uint8_t *sideData = nullptr;
+  int side_data_size = 0;
+
+  AVFrameSideData *pSideData = av_frame_get_side_data(m_pFrame, AV_FRAME_DATA_MASTERING_DISPLAY_METADATA);
+  if (pSideData)
+  {
+    sideData = pSideData->data;
+    side_data_size = pSideData->size;
+  }
+  if (!sideData || !side_data_size)
+  {
+    sideData = m_hints.hdr_data;
+    side_data_size = m_hints.hdr_data_size;
+  }
+  if (sideData && side_data_size)
+  {
+    pDvdVideoPicture->hdr_data = static_cast<uint8_t*>(av_malloc(side_data_size));
+    memcpy(pDvdVideoPicture->hdr_data, sideData, side_data_size);
+    pDvdVideoPicture->hdr_data_size = side_data_size;
+  }
+
   return true;
+}
+
+bool CDVDVideoCodecFFmpeg::ClearPicture(DVDVideoPicture* pDvdVideoPicture)
+{
+  av_freep(&pDvdVideoPicture->hdr_data);
+  pDvdVideoPicture->hdr_data_size = 0;
+
+  return CDVDVideoCodec::ClearPicture(pDvdVideoPicture);
 }
 
 bool CDVDVideoCodecFFmpeg::GetPicture(DVDVideoPicture* pDvdVideoPicture)

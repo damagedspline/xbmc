@@ -22,16 +22,41 @@
 
 #include "DVDDemuxers/DVDDemux.h"
 
-CDVDStreamInfo::CDVDStreamInfo()                                                     { extradata = NULL; Clear(); }
-CDVDStreamInfo::CDVDStreamInfo(const CDVDStreamInfo &right, bool withextradata )     { extradata = NULL; Clear(); Assign(right, withextradata); }
-CDVDStreamInfo::CDVDStreamInfo(const CDemuxStream &right, bool withextradata )       { extradata = NULL; Clear(); Assign(right, withextradata); }
+CDVDStreamInfo::CDVDStreamInfo()
+{
+  extradata = nullptr; 
+  hdr_data = nullptr; 
+  Clear();
+}
+
+CDVDStreamInfo::CDVDStreamInfo(const CDVDStreamInfo &right, bool withextradata )
+{
+  extradata = nullptr; 
+  hdr_data = nullptr; 
+  Clear(); 
+  Assign(right, withextradata);
+}
+
+CDVDStreamInfo::CDVDStreamInfo(const CDemuxStream &right, bool withextradata )
+{
+  extradata = nullptr; 
+  hdr_data = nullptr; 
+  Clear(); 
+  Assign(right, withextradata);
+}
 
 CDVDStreamInfo::~CDVDStreamInfo()
 {
-  if( extradata && extrasize ) free(extradata);
+  if( extradata && extrasize ) 
+    free(extradata);
 
-  extradata = NULL;
+  extradata = nullptr;
   extrasize = 0;
+
+  if (hdr_data && hdr_data_size) 
+    free(hdr_data);
+  hdr_data = nullptr;
+  hdr_data_size = 0;
 }
 
 
@@ -47,10 +72,15 @@ void CDVDStreamInfo::Clear()
   filename.clear();
   dvd = false;
 
-  if( extradata && extrasize ) free(extradata);
-
-  extradata = NULL;
+  if( extradata && extrasize ) 
+    free(extradata);
+  extradata = nullptr;
   extrasize = 0;
+
+  if ( hdr_data && hdr_data_size )
+    free(hdr_data);
+  hdr_data = nullptr;
+  hdr_data_size = 0;
 
   fpsscale = 0;
   fpsrate  = 0;
@@ -74,6 +104,9 @@ void CDVDStreamInfo::Clear()
   channellayout = 0;
 
   orientation = 0;
+
+  hdr_data = nullptr;
+  hdr_data_size = 0;
 }
 
 bool CDVDStreamInfo::Equal(const CDVDStreamInfo& right, bool withextradata)
@@ -156,7 +189,7 @@ void CDVDStreamInfo::Assign(const CDVDStreamInfo& right, bool withextradata)
   else
   {
     extrasize = 0;
-    extradata = 0;
+    extradata = nullptr;
   }
 
   // VIDEO
@@ -175,6 +208,14 @@ void CDVDStreamInfo::Assign(const CDVDStreamInfo& right, bool withextradata)
   vfr = right.vfr;
   software = right.software;
   stereo_mode = right.stereo_mode;
+
+  if (right.hdr_data_size)
+  {
+    hdr_data_size = right.hdr_data_size;
+    hdr_data = static_cast<uint8_t*>(malloc(hdr_data_size));
+    if (hdr_data)
+      memcpy(hdr_data, right.hdr_data, hdr_data_size);
+  }
 
   // AUDIO
   channels      = right.channels;
@@ -233,6 +274,14 @@ void CDVDStreamInfo::Assign(const CDemuxStream& right, bool withextradata)
     orientation = stream->iOrientation;
     bitsperpixel = stream->iBitsPerPixel;
     stereo_mode = stream->stereo_mode;
+
+    if (stream->hdr_data_size)
+    {
+      hdr_data_size = stream->hdr_data_size;
+      hdr_data = static_cast<uint8_t*>(malloc(hdr_data_size));
+      if (hdr_data)
+        memcpy(hdr_data, stream->hdr_data, hdr_data_size);
+    }
   }
   else if(  right.type == STREAM_SUBTITLE )
   {

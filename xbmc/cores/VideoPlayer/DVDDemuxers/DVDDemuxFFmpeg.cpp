@@ -1452,6 +1452,11 @@ CDemuxStream* CDVDDemuxFFmpeg::AddStream(int streamIdx)
         if (!stereoMode.empty())
           st->stereo_mode = stereoMode;
 
+        // get HDR data from container if exists
+        st->hdr_data = reinterpret_cast<uint8_t*>(
+          av_stream_get_side_data(pStream
+                                , AV_PKT_DATA_MASTERING_DISPLAY_METADATA
+                                , &st->hdr_data_size));
         
         if ( m_pInput->IsStreamType(DVDSTREAM_TYPE_DVD) )
         {

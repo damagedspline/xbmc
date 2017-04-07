@@ -65,6 +65,7 @@ public:
   virtual void Reset() override;
   virtual void Reopen() override;
   bool GetPictureCommon(DVDVideoPicture* pDvdVideoPicture);
+  bool ClearPicture(DVDVideoPicture* pDvdVideoPicture) override;
   virtual bool GetPicture(DVDVideoPicture* pDvdVideoPicture) override;
   virtual void SetDropState(bool bDrop) override;
   virtual const char* GetName() override { return m_name.c_str(); }; // m_name is never changed after open

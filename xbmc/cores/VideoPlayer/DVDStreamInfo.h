@@ -73,6 +73,8 @@ public:
   int orientation; // orientation of the video in degress counter clockwise
   int bitsperpixel;
   std::string stereo_mode; // stereoscopic 3d mode
+  uint8_t *hdr_data; // HDR side data
+  int hdr_data_size; // HDR side data size
 
   // AUDIO
   int channels;

@@ -157,6 +157,8 @@ public:
     type = STREAM_VIDEO;
     iOrientation = 0;
     iBitsPerPixel = 0;
+    hdr_data = nullptr;
+    hdr_data_size = 0;
   }
 
   virtual ~CDemuxStreamVideo() {}
@@ -171,6 +173,8 @@ public:
   int iOrientation; // orientation of the video in degress counter clockwise
   int iBitsPerPixel;
   std::string stereo_mode; // expected stereo mode
+  uint8_t *hdr_data; // HDR data
+  int hdr_data_size; // HDR data size
 };
 
 class CDemuxStreamAudio : public CDemuxStream
