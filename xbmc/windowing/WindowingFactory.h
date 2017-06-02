@@ -29,6 +29,9 @@
 #elif defined(TARGET_WINDOWS) && defined(HAS_DX)
 #include "windows/WinSystemWin32DX.h"
 
+#elif defined(TARGET_WIN10) && defined(HAS_DX)
+#include "win10/WinSystemWin10DX.h"
+
 #elif defined(TARGET_RASPBERRY_PI) && defined(HAS_GLES)
 #include "rpi/WinSystemRpiGLESContext.h"
 

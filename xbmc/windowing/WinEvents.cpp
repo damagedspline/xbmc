@@ -22,7 +22,11 @@
 
 #include "system.h"
 
-#if   defined(TARGET_WINDOWS)
+#if defined(TARGET_WIN10)
+#include "win10/WinEventsWin10.h"
+#define WinEventsType CWinEventsWin10
+
+#elif defined(TARGET_WINDOWS)
 #include "windows/WinEventsWin32.h"
 #define WinEventsType CWinEventsWin32
 
