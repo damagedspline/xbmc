@@ -24,6 +24,7 @@
 
 namespace XBMCAddon
 {
+
   typedef std::string String;
 
   extern String emptyString;
