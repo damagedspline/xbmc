@@ -20,9 +20,6 @@
 
 #pragma once
 
-#include <windows.h>
-
-
 struct threadOpaque
 {
   HANDLE handle;

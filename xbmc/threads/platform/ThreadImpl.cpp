@@ -29,5 +29,7 @@
 #endif
 #elif (defined TARGET_WINDOWS)
 #include "threads/platform/win/ThreadImpl.cpp"
+#elif (defined TARGET_WIN10)
+#include "threads/platform/win/ThreadImpl.cpp"
 #endif
 

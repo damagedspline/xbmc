@@ -1,4 +1,6 @@
-set(SOURCES Win32Exception.cpp)
+if(NOT CORE_SYSTEM_NAME STREQUAL windowsstore)
+	set(SOURCES Win32Exception.cpp)
+endif()
 
 set(HEADERS Condition.h
             CriticalSection.h

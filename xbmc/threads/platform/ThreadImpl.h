@@ -24,4 +24,6 @@
 #include "threads/platform/pthreads/ThreadImpl.h"
 #elif (defined TARGET_WINDOWS)
 #include "threads/platform/win/ThreadImpl.h"
+#elif (defined TARGET_WIN10)
+#include "threads/platform/win/ThreadImpl.h"
 #endif

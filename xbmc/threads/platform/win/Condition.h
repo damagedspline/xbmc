@@ -23,8 +23,6 @@
 #include "threads/SingleLock.h"
 #include "threads/Helpers.h"
 
-#include <windows.h>
-
 namespace XbmcThreads
 {
   /**

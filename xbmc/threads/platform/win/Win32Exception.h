@@ -20,11 +20,7 @@
  *
  */
 
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN 1
-#endif
-#include <windows.h>
-
+#ifndef TARGET_WIN10
 class win32_exception
 {
 public:
@@ -37,3 +33,4 @@ public:
 private:
     static std::string mVersion;
 };
+#endif

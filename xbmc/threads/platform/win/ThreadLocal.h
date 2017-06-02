@@ -20,7 +20,6 @@
 
 #pragma once
 
-#include <windows.h>
 #include "commons/Exception.h"
 
 namespace XbmcThreads
