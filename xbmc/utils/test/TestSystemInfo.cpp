@@ -67,7 +67,7 @@ TEST_F(TestSystemInfo, GetKernelName)
   EXPECT_EQ(g_sysinfo.GetBuildTargetPlatformName(), g_sysinfo.GetKernelName(true)) << "'GetKernelName(true)' must match GetBuildTargetPlatformName()";
   EXPECT_EQ(g_sysinfo.GetBuildTargetPlatformName(), g_sysinfo.GetKernelName(false)) << "'GetKernelName(false)' must match GetBuildTargetPlatformName()";
 #endif // !TARGET_DARWIN
-#if defined(TARGET_WINDOWS)
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
   EXPECT_NE(std::string::npos, g_sysinfo.GetKernelName(true).find("Windows")) << "'GetKernelName(true)' must contain 'Windows'";
   EXPECT_NE(std::string::npos, g_sysinfo.GetKernelName(false).find("Windows")) << "'GetKernelName(false)' must contain 'Windows'";
 #elif defined(TARGET_FREEBSD)
@@ -105,7 +105,7 @@ TEST_F(TestSystemInfo, GetOsName)
   EXPECT_FALSE(g_sysinfo.GetOsName(false).empty()) << "'GetOsName(false)' must not return empty OS name";
   EXPECT_STRCASENE("Unknown OS", g_sysinfo.GetOsName(true).c_str()) << "'GetOsName(true)' must not return 'Unknown OS'";
   EXPECT_STRCASENE("Unknown OS", g_sysinfo.GetOsName(false).c_str()) << "'GetOsName(false)' must not return 'Unknown OS'";
-#if defined(TARGET_WINDOWS)
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
   EXPECT_NE(std::string::npos, g_sysinfo.GetOsName(true).find("Windows")) << "'GetOsName(true)' must contain 'Windows'";
   EXPECT_NE(std::string::npos, g_sysinfo.GetOsName(false).find("Windows")) << "'GetOsName(false)' must contain 'Windows'";
 #elif defined(TARGET_FREEBSD)
@@ -141,7 +141,7 @@ TEST_F(TestSystemInfo, GetOsPrettyNameWithVersion)
   EXPECT_FALSE(g_sysinfo.GetOsPrettyNameWithVersion().empty()) << "'GetOsPrettyNameWithVersion()' must not return empty string";
   EXPECT_EQ(std::string::npos, g_sysinfo.GetOsPrettyNameWithVersion().find("Unknown")) << "'GetOsPrettyNameWithVersion()' must not contain 'Unknown'";
   EXPECT_EQ(std::string::npos, g_sysinfo.GetOsPrettyNameWithVersion().find("unknown")) << "'GetOsPrettyNameWithVersion()' must not contain 'unknown'";
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
   EXPECT_NE(std::string::npos, g_sysinfo.GetOsPrettyNameWithVersion().find("Windows")) << "'GetOsPrettyNameWithVersion()' must contain 'Windows'";
 #else  // ! TARGET_WINDOWS
   EXPECT_NE(std::string::npos, g_sysinfo.GetOsPrettyNameWithVersion().find(g_sysinfo.GetOsVersion())) << "'GetOsPrettyNameWithVersion()' must contain OS version";
@@ -158,7 +158,7 @@ TEST_F(TestSystemInfo, GetModelName)
   EXPECT_STRCASENE("unknown", g_sysinfo.GetModelName().c_str()) << "'GetModelName()' must return empty string instead of 'Unknown'";
 }
 
-#ifndef TARGET_WINDOWS
+#if !defined(TARGET_WINDOWS) && !defined(TARGET_WIN10)
 TEST_F(TestSystemInfo, IsAeroDisabled)
 {
   EXPECT_FALSE(g_sysinfo.IsAeroDisabled()) << "'IsAeroDisabled()' must return 'false'";

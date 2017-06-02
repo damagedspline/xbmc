@@ -21,6 +21,7 @@
 #include <cstdlib>
 
 #include "CPUInfo.h"
+#include "utils/log.h"
 #include "utils/Temperature.h"
 #include <string>
 #include <string.h>
@@ -55,13 +56,16 @@
 #include "platform/android/activity/AndroidFeatures.h"
 #endif
 
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
 #include "platform/win32/CharsetConverter.h"
 #include <algorithm>
 #include <intrin.h>
 #include <Pdh.h>
 #include <PdhMsg.h>
+
+#ifndef TARGET_WIN10
 #pragma comment(lib, "Pdh.lib")
+#endif
 
 // Defines to help with calls to CPUID
 #define CPUID_INFOTYPE_STANDARD 0x00000001
@@ -152,7 +156,8 @@ CCPUInfo::CCPUInfo(void)
     core.m_strVendor = cpuVendor;
     m_cores[core.m_id] = core;
   }
-
+#elif defined(TARGET_WIN10)
+  CLog::Log(LOGERROR, "%s is not implemented", __FUNCTION__);
 #elif defined(TARGET_WINDOWS)
   using KODI::PLATFORM::WINDOWS::FromW;
 
@@ -542,7 +547,10 @@ float CCPUInfo::getCPUFrequency()
   if (sysctlbyname("hw.cpufrequency", &hz, &len, NULL, 0) == -1)
     return 0.f;
   return hz / 1000000.0;
-#elif defined TARGET_WINDOWS
+#elif defined(TARGET_WIN10) 
+  CLog::Log(LOGERROR, "%s is not implemented", __FUNCTION__);
+  return 0.f;
+#elif defined(TARGET_WINDOWS) 
   if (m_cpuFreqCounter && PdhCollectQueryData(m_cpuQueryFreq) == ERROR_SUCCESS)
   {
     PDH_RAW_COUNTER cnt;
@@ -679,8 +687,10 @@ const CoreInfo &CCPUInfo::GetCoreInfo(int nCoreId)
 bool CCPUInfo::readProcStat(unsigned long long& user, unsigned long long& nice,
     unsigned long long& system, unsigned long long& idle, unsigned long long& io)
 {
-
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WIN10)
+  //CLog::Log(LOGERROR, "%s is not implemented", __FUNCTION__);
+  return false;
+#elif defined (TARGET_WINDOWS) 
   FILETIME idleTime;
   FILETIME kernelTime;
   FILETIME userTime;

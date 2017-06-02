@@ -769,7 +769,8 @@ void SortUtils::Sort(SortBy sortBy, SortOrder sortOrder, SortAttribute attribute
 
         std::wstring sortLabel;
         g_charsetConverter.utf8ToW(preparator(attributes, **item), sortLabel, false);
-        (*item)->insert(std::pair<Field, CVariant>(FieldSort, CVariant(sortLabel)));
+        auto p = std::pair<Field, CVariant>(FieldSort, CVariant(sortLabel));
+        (*item)->insert(p);
       }
 
       // Do the sorting

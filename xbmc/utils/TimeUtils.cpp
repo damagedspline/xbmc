@@ -26,9 +26,7 @@
 #if   defined(TARGET_DARWIN)
 #include <mach/mach_time.h>
 #include <CoreVideo/CVHostTime.h>
-#elif defined(TARGET_WINDOWS)
-#include <windows.h>
-#else
+#elif !defined(TARGET_WINDOWS) && !defined(TARGET_WIN10)
 #include <time.h>
 #endif
 
@@ -36,7 +34,7 @@ int64_t CurrentHostCounter(void)
 {
 #if   defined(TARGET_DARWIN)
   return( (int64_t)CVGetCurrentHostTime() );
-#elif defined(TARGET_WINDOWS)
+#elif defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
   LARGE_INTEGER PerformanceCount;
   QueryPerformanceCounter(&PerformanceCount);
   return( (int64_t)PerformanceCount.QuadPart );
@@ -55,7 +53,7 @@ int64_t CurrentHostFrequency(void)
 {
 #if defined(TARGET_DARWIN)
   return( (int64_t)CVGetHostClockFrequency() );
-#elif defined(TARGET_WINDOWS)
+#elif defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
   LARGE_INTEGER Frequency;
   QueryPerformanceFrequency(&Frequency);
   return( (int64_t)Frequency.QuadPart );

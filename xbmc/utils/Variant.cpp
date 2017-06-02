@@ -169,7 +169,9 @@ CVariant::CVariant(VariantType type)
       m_data.map = new VariantMap();
       break;
     default:
+#ifndef TARGET_WIN10 // this corrupts the heap in Win10 UWP version
       memset(&m_data, 0, sizeof(m_data));
+#endif
       break;
   }
 }

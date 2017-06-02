@@ -265,7 +265,7 @@ TEST_F(TestURIUtils, IsDOSPath)
 TEST_F(TestURIUtils, IsDVD)
 {
   EXPECT_TRUE(URIUtils::IsDVD("dvd://path/in/video_ts.ifo"));
-#if defined(TARGET_WINDOWS)
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
   EXPECT_TRUE(URIUtils::IsDVD("dvd://path/in/file"));
 #else
   EXPECT_TRUE(URIUtils::IsDVD("iso9660://path/in/video_ts.ifo"));

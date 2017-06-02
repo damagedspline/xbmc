@@ -40,9 +40,19 @@
 #include "CompileInfo.h"
 #include "settings/Settings.h"
 #include "platform/Filesystem.h"
+#include "utils/log.h"
 
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
 #include "dwmapi.h"
+#include "utils/CharsetConverter.h"
+#include <VersionHelpers.h>
+
+#ifdef TARGET_WIN10
+using namespace Windows::ApplicationModel;
+using namespace Windows::Security::ExchangeActiveSyncProvisioning;
+using namespace Windows::System;
+using namespace Windows::System::Profile;
+#endif
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN 1
 #endif // WIN32_LEAN_AND_MEAN
@@ -86,7 +96,7 @@
 
 using namespace XFILE;
 
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS)
 static bool sysGetVersionExWByRef(OSVERSIONINFOEXW& osVerInfo)
 {
   ZeroMemory(&osVerInfo, sizeof(osVerInfo));
@@ -288,7 +298,7 @@ CSysData::INTERNET_STATE CSysInfoJob::GetInternetState()
 
 std::string CSysInfoJob::GetMACAddress()
 {
-#if defined(HAS_LINUX_NETWORK) || defined(HAS_WIN32_NETWORK)
+#if defined(HAS_LINUX_NETWORK) || defined(HAS_WIN32_NETWORK) || defined(HAS_WIN10_NETWORK)
   CNetworkInterface* iface = g_application.getNetwork().GetFirstConnectedInterface();
   if (iface)
     return iface->GetMacAddress();
@@ -308,7 +318,7 @@ std::string CSysInfoJob::GetBatteryLevel()
 
 double CSysInfoJob::GetCPUFrequency()
 {
-#if defined (TARGET_POSIX) || defined(TARGET_WINDOWS)
+#if defined (TARGET_POSIX) || defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
   return double (g_cpuInfo.getCPUFrequency());
 #else
   return 0;
@@ -465,7 +475,7 @@ bool CSysInfo::GetDiskSpace(std::string drive,int& iTotal, int& iTotalFree, int&
   // drives/mounts
   if (drive.empty() || drive == "*")
   {
-#if defined(TARGET_WINDOWS)
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
     drive = "C";
 #elif defined(TARGET_POSIX)
     drive = "/";
@@ -530,6 +540,10 @@ std::string CSysInfo::GetKernelName(bool emptyIfUnknown /*= false*/)
     OSVERSIONINFOEXW osvi;
     if (sysGetVersionExWByRef(osvi) && osvi.dwPlatformId == VER_PLATFORM_WIN32_NT)
       kernelName = "Windows NT";
+#elif  defined(TARGET_WIN10)
+    auto e = ref new EasClientDeviceInformation();
+    auto os = e->OperatingSystem;
+    g_charsetConverter.wToUTF8(std::wstring(os->Data()), kernelName);
 #elif defined(TARGET_POSIX)
     struct utsname un;
     if (uname(&un) == 0)
@@ -556,6 +570,15 @@ std::string CSysInfo::GetKernelVersionFull(void)
   OSVERSIONINFOEXW osvi;
   if (sysGetVersionExWByRef(osvi))
     kernelVersionFull = StringUtils::Format("%d.%d", osvi.dwMajorVersion, osvi.dwMinorVersion);
+#elif  defined(TARGET_WIN10)
+  // get the system version number
+  auto sv = AnalyticsInfo::VersionInfo->DeviceFamilyVersion;
+  wchar_t* end;
+  unsigned long long  v = wcstoull(sv->Data(), &end, 10);
+  unsigned long long v1 = (v & 0xFFFF000000000000L) >> 48;
+  unsigned long long v2 = (v & 0x0000FFFF00000000L) >> 32;
+  kernelVersionFull = StringUtils::Format("%lld.%lld", v1, v2);
+
 #elif defined(TARGET_POSIX)
   struct utsname un;
   if (uname(&un) == 0)
@@ -587,7 +610,7 @@ std::string CSysInfo::GetOsName(bool emptyIfUnknown /* = false*/)
   static std::string osName;
   if (osName.empty())
   {
-#if defined (TARGET_WINDOWS)
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
     osName = GetKernelName() + "-based OS";
 #elif defined(TARGET_FREEBSD)
     osName = GetKernelName(true); // FIXME: for FreeBSD OS name is a kernel name
@@ -621,7 +644,7 @@ std::string CSysInfo::GetOsVersion(void)
   if (!osVersion.empty())
     return osVersion;
 
-#if defined(TARGET_WINDOWS) || defined(TARGET_FREEBSD)
+#if defined(TARGET_WINDOWS) || defined(TARGET_FREEBSD) || defined(TARGET_WIN10)
   osVersion = GetKernelVersion(); // FIXME: for Win32 and FreeBSD OS version is a kernel version
 #elif defined(TARGET_DARWIN_IOS)
   osVersion = CDarwinUtils::GetIOSVersionString();
@@ -660,7 +683,7 @@ std::string CSysInfo::GetOsPrettyNameWithVersion(void)
   if (!osNameVer.empty())
     return osNameVer;
 
-#if defined (TARGET_WINDOWS)
+#if defined(TARGET_WINDOWS)
   OSVERSIONINFOEXW osvi = {};
 
   osNameVer = "Windows ";
@@ -712,7 +735,9 @@ std::string CSysInfo::GetOsPrettyNameWithVersion(void)
   }
   else
     osNameVer.append(" unknown");
-#elif defined(TARGET_FREEBSD) || defined(TARGET_DARWIN_IOS) || defined(TARGET_DARWIN_OSX)
+#elif defined(TARGET_WIN10)
+  osNameVer = GetKernelName() + " " + GetOsVersion();
+#elif defined(TARGET_FREEBSD) || defined(TARGET_DARWIN_IOS) || defined(TARGET_DARWIN_OSX) || defined(TARGET_WIN10)
   osNameVer = GetOsName() + " " + GetOsVersion();
 #elif defined(TARGET_ANDROID)
   osNameVer = GetOsName() + " " + GetOsVersion() + " API level " +   StringUtils::Format("%d", CJNIBuild::SDK_INT);
@@ -751,6 +776,10 @@ std::string CSysInfo::GetManufacturerName(void)
     manufName.assign(deviceCStr, (propLen > 0 && propLen <= PROP_VALUE_MAX) ? propLen : 0);
 #elif defined(TARGET_DARWIN)
     manufName = CDarwinUtils::GetManufacturer();
+#elif defined(TARGET_WIN10)
+    EasClientDeviceInformation^ eas = ref new EasClientDeviceInformation();
+    Platform::String^ manufacturer = eas->SystemManufacturer;
+    g_charsetConverter.wToUTF8(std::wstring(manufacturer->Data()), manufName);
 #elif defined(TARGET_WINDOWS)
     // We just don't care, might be useful on embedded
 #endif
@@ -780,6 +809,10 @@ std::string CSysInfo::GetModelName(void)
       if (sysctlbyname("hw.model", buf.get(), &nameLen, NULL, 0) == 0 && nameLen == buf.size())
         modelName.assign(buf.get(), nameLen - 1); // assign exactly 'nameLen-1' characters to 'modelName'
     }
+#elif defined(TARGET_WIN10)
+    EasClientDeviceInformation^ eas = ref new EasClientDeviceInformation();
+    Platform::String^ manufacturer = eas->SystemProductName;
+    g_charsetConverter.wToUTF8(std::wstring(manufacturer->Data()), modelName);
 #elif defined(TARGET_WINDOWS)
     // We just don't care, might be useful on embedded
 #endif
@@ -791,7 +824,9 @@ std::string CSysInfo::GetModelName(void)
 
 bool CSysInfo::IsAeroDisabled()
 {
-#ifdef TARGET_WINDOWS
+#ifdef TARGET_WIN10
+  return true; // need to review https://msdn.microsoft.com/en-us/library/windows/desktop/aa969518(v=vs.85).aspx
+#elif defined(TARGET_WINDOWS)
   BOOL aeroEnabled = FALSE;
   HRESULT res = DwmIsCompositionEnabled(&aeroEnabled);
   if (SUCCEEDED(res))
@@ -829,7 +864,7 @@ bool CSysInfo::IsWindowsVersionAtLeast(WindowsVersion ver)
 
 CSysInfo::WindowsVersion CSysInfo::GetWindowsVersion()
 {
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS)
   if (m_WinVer == WindowsVersionUnknown)
   {
     OSVERSIONINFOEXW osvi = {};
@@ -848,6 +883,8 @@ CSysInfo::WindowsVersion CSysInfo::GetWindowsVersion()
         m_WinVer = WindowsVersionFuture;
     }
   }
+#elif  defined(TARGET_WIN10)
+  m_WinVer = WindowsVersionWin10;
 #endif // TARGET_WINDOWS
   return m_WinVer;
 }
@@ -857,7 +894,27 @@ int CSysInfo::GetKernelBitness(void)
   static int kernelBitness = -1;
   if (kernelBitness == -1)
   {
-#ifdef TARGET_WINDOWS
+#ifdef TARGET_WIN10
+    Package^ package = Package::Current;
+    auto arch = package->Id->Architecture;
+    switch (arch)
+    {
+    case ProcessorArchitecture::X86:
+      kernelBitness = 32;
+      break;
+    case ProcessorArchitecture::X64:
+      kernelBitness = 64;
+      break;
+    case ProcessorArchitecture::Arm:
+      kernelBitness = 32;
+      break;
+    case ProcessorArchitecture::Unknown: // not sure what to do here. guess 32 for now
+    case ProcessorArchitecture::Neutral:
+      kernelBitness = 32;
+      break;
+    }
+
+#elif defined(TARGET_WINDOWS)
     SYSTEM_INFO si;
     GetNativeSystemInfo(&si);
     if (si.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_INTEL || si.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_ARM)
@@ -899,7 +956,7 @@ const std::string& CSysInfo::GetKernelCpuFamily(void)
   static std::string kernelCpuFamily;
   if (kernelCpuFamily.empty())
   {
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
     SYSTEM_INFO si;
     GetNativeSystemInfo(&si);
     if (si.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_INTEL ||
@@ -1022,12 +1079,14 @@ std::string CSysInfo::GetUserAgent()
     return result;
 
   result = GetAppName() + "/" + CSysInfo::GetVersionShort() + " (";
-#if defined(TARGET_WINDOWS)
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
   result += GetKernelName() + " " + GetKernelVersion();
+#ifndef TARGET_WIN10
   BOOL bIsWow = FALSE;
   if (IsWow64Process(GetCurrentProcess(), &bIsWow) && bIsWow)
       result.append("; WOW64");
   else
+#endif
   {
     SYSTEM_INFO si = {};
     GetSystemInfo(&si);
@@ -1208,7 +1267,7 @@ std::string CSysInfo::GetBuildTargetPlatformName(void)
   return "Android";
 #elif defined(TARGET_LINUX)
   return "Linux";
-#elif defined(TARGET_WINDOWS)
+#elif defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
 #ifdef NTDDI_VERSION
   return "Windows NT";
 #else // !NTDDI_VERSION
@@ -1277,7 +1336,7 @@ std::string CSysInfo::GetBuildTargetPlatformVersionDecoded(void)
   return "API level " XSTR_MACRO(__ANDROID_API__);
 #elif defined(TARGET_LINUX)
   return StringUtils::Format("version %d.%d.%d", (LINUX_VERSION_CODE >> 16) & 0xFF , (LINUX_VERSION_CODE >> 8) & 0xFF, LINUX_VERSION_CODE & 0xFF);
-#elif defined(TARGET_WINDOWS)
+#elif defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
 #ifdef NTDDI_VERSION
   std::string version(StringUtils::Format("version %d.%d", int(NTDDI_VERSION >> 24) & 0xFF, int(NTDDI_VERSION >> 16) & 0xFF));
   if (SPVER(NTDDI_VERSION))

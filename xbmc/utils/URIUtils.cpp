@@ -29,6 +29,7 @@
 #include "settings/AdvancedSettings.h"
 #include "URL.h"
 #include "StringUtils.h"
+#include "utils/log.h"
 
 #if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
 #include "platform/win32/CharsetConverter.h"
@@ -595,7 +596,10 @@ bool URIUtils::IsRemote(const std::string& strFile)
 
 bool URIUtils::IsOnDVD(const std::string& strFile)
 {
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WIN10)
+    CLog::Log(LOGERROR, "%s is not implemented", __FUNCTION__);
+    return false;
+#elif defined(TARGET_WINDOWS)
   using KODI::PLATFORM::WINDOWS::ToW;
   if (strFile.size() >= 2 && strFile.substr(1,1) == ":")
     return (GetDriveType(ToW(strFile.substr(0, 3)).c_str()) == DRIVE_CDROM);
@@ -710,7 +714,7 @@ bool URIUtils::IsHD(const std::string& strFileName)
   if (HasParentInHostname(url))
     return IsHD(url.GetHostName());
 
-  return url.GetProtocol().empty() || url.IsProtocol("file");
+  return url.GetProtocol().empty() || url.IsProtocol("file") || url.IsProtocol("win-lib");
 }
 
 bool URIUtils::IsDVD(const std::string& strFile)
@@ -720,15 +724,17 @@ bool URIUtils::IsDVD(const std::string& strFile)
   if (strFileLow.find("video_ts.ifo") != std::string::npos && IsOnDVD(strFile))
     return true;
 
-#if defined(TARGET_WINDOWS)
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
   if (IsProtocol(strFile, "dvd"))
     return true;
 
   if(strFile.size() < 2 || (strFile.substr(1) != ":\\" && strFile.substr(1) != ":"))
     return false;
 
+#ifndef TARGET_WIN10
   if(GetDriveType(KODI::PLATFORM::WINDOWS::ToW(strFile).c_str()) == DRIVE_CDROM)
     return true;
+#endif
 #else
   if (strFileLow == "iso9660://" || strFileLow == "udf://" || strFileLow == "dvd://1" )
     return true;
