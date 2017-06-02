@@ -27,7 +27,7 @@
 #include "system.h"
 #include "IoSupport.h"
 #include "utils/log.h"
-#ifdef TARGET_WINDOWS
+#if defined (TARGET_WINDOWS) || defined(TARGET_WIN10)
 #include "my_ntddcdrm.h"
 #include "platform/win32/CharsetConverter.h"
 #endif
@@ -82,6 +82,7 @@ HANDLE CIoSupport::OpenCDROM()
   hDevice->fd = fd;
   hDevice->m_bCDROM = true;
 #elif defined(TARGET_WINDOWS)
+
   auto filename = KODI::PLATFORM::WINDOWS::ToW(g_mediaManager.TranslateDevicePath("", true));
   hDevice = CreateFile(filename.c_str(), GENERIC_READ, FILE_SHARE_READ,
                        nullptr, OPEN_EXISTING,
@@ -245,6 +246,8 @@ INT CIoSupport::ReadSectorMode2(HANDLE hDevice, DWORD dwSector, LPSTR lpczBuffer
     OutputDebugString("CD Read error\n");
     return -1;
   }
+#elif defined(TARGET_WIN10)
+  CLog::Log(LOGERROR, "%s is not implemented", __FUNCTION__);
 #else
   DWORD dwBytesReturned;
   RAW_READ_INFO rawRead = {0};
