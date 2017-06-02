@@ -17,6 +17,7 @@
  *  <http://www.gnu.org/licenses/>.
  *
  */
+#include <assert.h>
 
 #include "AddonButtonMap.h"
 #include "PeripheralAddonTranslator.h"
@@ -25,7 +26,6 @@
 #include "utils/log.h"
 
 #include <algorithm>
-#include <assert.h>
 #include <vector>
 
 using namespace KODI;
