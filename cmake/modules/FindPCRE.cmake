@@ -61,7 +61,7 @@ if(PCRE_FOUND)
     endif()
     set_target_properties(PCRE::PCRE PROPERTIES
                                      INTERFACE_INCLUDE_DIRECTORIES "${PCRE_INCLUDE_DIR}")
-    if(WIN32)
+    if(WIN32 AND NOT ARCH STREQUAL arm)
       set_target_properties(PCRE::PCRE PROPERTIES
                                        INTERFACE_COMPILE_DEFINITIONS PCRE_STATIC=1)
     endif()

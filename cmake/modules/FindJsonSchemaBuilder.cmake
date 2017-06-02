@@ -8,7 +8,7 @@
 #   JsonSchemaBuilder::JsonSchemaBuilder   - The JsonSchemaBuilder executable
 
 if(NOT TARGET JsonSchemaBuilder::JsonSchemaBuilder)
-  if(KODI_DEPENDSBUILD OR CMAKE_CROSSCOMPILING)
+  if(ON OR KODI_DEPENDSBUILD OR CMAKE_CROSSCOMPILING)
     add_executable(JsonSchemaBuilder::JsonSchemaBuilder IMPORTED GLOBAL)
     if(CORE_SYSTEM_NAME STREQUAL windows OR CORE_SYSTEM_NAME STREQUAL windowsstore)
       set_target_properties(JsonSchemaBuilder::JsonSchemaBuilder PROPERTIES

@@ -61,6 +61,11 @@ if(CORE_SYSTEM_NAME STREQUAL linux OR CORE_SYSTEM_NAME STREQUAL rbpi)
   option(ENABLE_EVENTCLIENTS    "Enable event clients support?" OFF)
 endif()
 
+if(CORE_SYSTEM_NAME STREQUAL windowsstore)
+  set(ENABLE_OPTICAL OFF)
+endif()
+
+
 # Build static libraries per directory
 if(NOT CMAKE_GENERATOR MATCHES "Visual Studio" AND NOT CMAKE_GENERATOR STREQUAL Xcode)
   set(ENABLE_STATIC_LIBS TRUE)
@@ -147,6 +152,12 @@ endif()
 if(CORE_SYSTEM_NAME STREQUAL android)
   list(APPEND required_deps Zip)
 endif()
+if(CORE_SYSTEM_NAME STREQUAL windowsstore)
+  #uses header only version of Fmt
+  list(REMOVE_ITEM required_deps Fmt)
+  list(REMOVE_ITEM required_deps LibDvd)
+endif()
+
 
 # Optional dependencies. Keep in alphabetical order please
 set(optional_deps Alsa
@@ -267,9 +278,11 @@ mark_as_advanced(test_sources)
 add_subdirectory(${CMAKE_SOURCE_DIR}/lib/gtest ${CORE_BUILD_DIR}/gtest EXCLUDE_FROM_ALL)
 set_target_properties(gtest PROPERTIES FOLDER "External Projects")
 
-# copy files to build tree
-copy_files_from_filelist_to_buildtree(${CMAKE_SOURCE_DIR}/cmake/installdata/common/*.txt
-                                      ${CMAKE_SOURCE_DIR}/cmake/installdata/${CORE_SYSTEM_NAME}/*.txt)
+if(NOT CORE_SYSTEM_NAME STREQUAL windowsstore)
+  # copy files to build tree
+  copy_files_from_filelist_to_buildtree(${CMAKE_SOURCE_DIR}/cmake/installdata/common/*.txt
+                                        ${CMAKE_SOURCE_DIR}/cmake/installdata/${CORE_SYSTEM_NAME}/*.txt)
+endif()
 
 list(APPEND SKINS "${CMAKE_SOURCE_DIR}/addons/skin.estuary\;${CMAKE_SOURCE_DIR}")
 list(APPEND SKINS "${CMAKE_SOURCE_DIR}/addons/skin.estouchy\;${CMAKE_SOURCE_DIR}")
@@ -288,7 +301,7 @@ set_target_properties(pack-skins PROPERTIES FOLDER "Build Utilities")
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/system/players/VideoPlayer)
 
 set(LIBCEC_SONAME "${CEC_SONAME}")
-if(NOT CORE_SYSTEM_NAME STREQUAL windows AND NOT CORE_SYSTEM_NAME STREQUAL android)
+if(NOT CORE_SYSTEM_NAME STREQUAL windows AND NOT CORE_SYSTEM_NAME STREQUAL android AND NOT CORE_SYSTEM_NAME STREQUAL windowsstore)
   configure_file(${CMAKE_SOURCE_DIR}/xbmc/DllPaths_generated.h.in
                  ${CORE_BUILD_DIR}/DllPaths_generated.h @ONLY)
 elseif(CORE_SYSTEM_NAME STREQUAL android)
@@ -297,9 +310,14 @@ elseif(CORE_SYSTEM_NAME STREQUAL android)
 endif()
 
 # main library (used for main binary and tests)
-add_library(lib${APP_NAME_LC} STATIC $<TARGET_OBJECTS:compileinfo>)
+if (CORE_SYSTEM_NAME STREQUAL windowsstore)
+  add_library(lib${APP_NAME_LC} SHARED $<TARGET_OBJECTS:compileinfo>)
+  add_dependencies(lib${APP_NAME_LC} libcpluff ffmpeg)
+else()
+  add_library(lib${APP_NAME_LC} STATIC $<TARGET_OBJECTS:compileinfo>)
+  add_dependencies(lib${APP_NAME_LC} libcpluff ffmpeg dvdnav crossguid)
+endif()
 set_target_properties(lib${APP_NAME_LC} PROPERTIES PREFIX "")
-add_dependencies(lib${APP_NAME_LC} libcpluff ffmpeg dvdnav crossguid)
 
 # Other files (IDE)
 set(OTHER_FILES cmake/README.md)
@@ -320,6 +338,9 @@ endif()
 
 # main binary
 if(NOT CORE_SYSTEM_NAME STREQUAL android)
+  if(CORE_SYSTEM_NAME STREQUAL windowsstore)
+    winstore_add_target_properties(${APP_NAME_LC})
+  endif()
   add_executable(${APP_NAME_LC} ${CORE_MAIN_SOURCE} "${RESOURCES}" ${OTHER_FILES})
   set_target_properties(${APP_NAME_LC} PROPERTIES ENABLE_EXPORTS ON)
 else()
@@ -334,7 +355,11 @@ unset(_MAIN_LIBRARIES)
 if(WIN32)
   set_target_properties(${APP_NAME_LC} PROPERTIES WIN32_EXECUTABLE ON)
   set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT ${APP_NAME_LC})
-  target_sources(${APP_NAME_LC} PRIVATE ${CMAKE_SOURCE_DIR}/xbmc/platform/win32/app.manifest)
+  if(NOT CORE_SYSTEM_NAME STREQUAL windowsstore)
+    target_sources(${APP_NAME_LC} PRIVATE ${CMAKE_SOURCE_DIR}/xbmc/platform/win32/app.manifest)
+  else()
+    set_target_properties(${APP_NAME_LC} PROPERTIES VS_USER_PROPS ${VCPROJECT_PROPS_FILE})
+  endif()
 elseif(CORE_SYSTEM_NAME STREQUAL android)
   # Nothing
 elseif(CORE_SYSTEM_NAME STREQUAL ios)
