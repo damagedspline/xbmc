@@ -64,7 +64,7 @@
 #include "guilib/TextureManager.h"
 #include "utils/fstrcmp.h"
 #include "storage/MediaManager.h"
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
 #include "utils/CharsetConverter.h"
 #include "WIN32Util.h"
 #endif
@@ -104,18 +104,22 @@ using namespace MEDIA_DETECT;
 using namespace XFILE;
 using namespace PLAYLIST;
 
-#if !defined(TARGET_WINDOWS)
+#if !defined(TARGET_WINDOWS) && !defined(TARGET_WIN10)
 unsigned int CUtil::s_randomSeed = time(NULL);
 #endif
 
 namespace
 {
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
 bool IsDirectoryValidRoot(std::wstring path)
 {
   path += L"\\system\\settings\\settings.xml";
+#if defined(TARGET_WIN10)
+  auto h = CreateFile2(path.c_str(), GENERIC_READ, 0, OPEN_EXISTING, NULL);
+#else
   auto h = CreateFileW(path.c_str(), GENERIC_READ, 0, nullptr,
     OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+#endif
   if (h != INVALID_HANDLE_VALUE)
   {
     CloseHandle(h);
@@ -861,7 +865,7 @@ void CUtil::Stat64ToStat(struct stat *result, struct __stat64 *stat)
   result->st_ctime = (time_t)(stat->st_ctime & 0xFFFFFFFF);
 }
 
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
 void CUtil::Stat64ToStat64i32(struct _stat64i32 *result, struct __stat64 *stat)
 {
   result->st_dev = stat->st_dev;
@@ -993,7 +997,7 @@ std::string CUtil::ValidatePath(const std::string &path, bool bFixDoubleSlashes 
     return result;
 
   // check the path for incorrect slashes
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
   if (URIUtils::IsDOSPath(path))
   {
     StringUtils::Replace(result, '/', '\\');
@@ -1755,7 +1759,7 @@ int CUtil::TranslateRomanNumeral(const char* roman_numeral)
 std::string CUtil::ResolveExecutablePath()
 {
   std::string strExecutablePath;
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
   static const size_t bufSize = MAX_PATH * 2;
   wchar_t* buf = new wchar_t[bufSize];
   buf[0] = 0;
@@ -2349,7 +2353,7 @@ bool CUtil::ValidatePort(int port)
 
 int CUtil::GetRandomNumber()
 {
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
   unsigned int number;
   if (rand_s(&number) == 0)
     return (int)number;

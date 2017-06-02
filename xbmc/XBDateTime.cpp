@@ -29,8 +29,6 @@
 #ifdef TARGET_POSIX
 #include "XTimeUtils.h"
 #include "XFileUtils.h"
-#else
-#include <Windows.h>
 #endif
 
 #define SECONDS_PER_DAY 86400UL
