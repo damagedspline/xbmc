@@ -27,7 +27,7 @@
 #include <utils/log.h>
 #include "dialogs/GUIDialogKaiToast.h"
 #include "guilib/LocalizeStrings.h"
-#if defined(TARGET_WINDOWS)
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
 #include "platform/win32/WIN32Util.h"
 #endif //TARGET_WINDOWS
 
@@ -107,9 +107,13 @@ bool CZeroconfMDNS::doPublishService(const std::string& fcr_identifier,
       CLog::Log(LOGERROR, "ZeroconfMDNS: DNSServiceCreateConnection failed with error = %ld", (int) err);
       return false;
     }
+#ifdef TARGET_WIN10
+    CLog::Log(LOGERROR, "ZeroconfMDNS: WSAAsyncSelect not yet supported for TARGET_WIN10");
+#else
     err = WSAAsyncSelect( (SOCKET) DNSServiceRefSockFD( m_service ), g_hWnd, BONJOUR_EVENT, FD_READ | FD_CLOSE );
     if (err != kDNSServiceErr_NoError)
       CLog::Log(LOGERROR, "ZeroconfMDNS: WSAAsyncSelect failed with error = %ld", (int) err);
+#endif
   }
 #endif //!HAS_MDNS_EMBEDDED
 
@@ -206,7 +210,9 @@ void CZeroconfMDNS::doStop()
   }
   {
     CSingleLock lock(m_data_guard);
-#if defined(TARGET_WINDOWS)
+#if defined(TARGET_WIN10)
+    CLog::Log(LOGERROR, "ZeroconfMDNS: WSAAsyncSelect not yet supported for TARGET_WIN10");
+#else
     WSAAsyncSelect( (SOCKET) DNSServiceRefSockFD( m_service ), g_hWnd, BONJOUR_EVENT, 0 );
 #endif //TARGET_WINDOWS
 

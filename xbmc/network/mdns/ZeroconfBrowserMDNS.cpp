@@ -31,7 +31,7 @@
 #include "threads/SingleLock.h"
 #include "utils/log.h"
 
-#if defined(TARGET_WINDOWS)
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
 #include "platform/win32/WIN32Util.h"
 #endif //TARGET_WINDOWS
 
@@ -52,6 +52,9 @@ CZeroconfBrowserMDNS::~CZeroconfBrowserMDNS()
 
 #if defined(TARGET_WINDOWS)
   WSAAsyncSelect( (SOCKET) DNSServiceRefSockFD( m_browser ), g_hWnd, BONJOUR_BROWSER_EVENT, 0 );
+#elif  defined(TARGET_WIN10)
+  // need to modify this code to use WSAEventSelect since WSAAsyncSelect is not supported
+  CLog::Log(LOGERROR, "%s is not implemented for TARGET_WIN10", __FUNCTION__);
 #endif //TARGET_WINDOWS
 
   if (m_browser)
@@ -241,6 +244,9 @@ bool CZeroconfBrowserMDNS::doAddServiceType(const std::string& fcr_service_type)
     err = WSAAsyncSelect( (SOCKET) DNSServiceRefSockFD( m_browser ), g_hWnd, BONJOUR_BROWSER_EVENT, FD_READ | FD_CLOSE );
     if (err != kDNSServiceErr_NoError)
       CLog::Log(LOGERROR, "ZeroconfBrowserMDNS: WSAAsyncSelect failed with error = %ld", (int) err);
+#elif defined(TARGET_WIN10)
+    // need to modify this code to use WSAEventSelect since WSAAsyncSelect is not supported
+    CLog::Log(LOGERROR, "%s is not implemented for TARGET_WIN10", __FUNCTION__);
 #endif //TARGET_WINDOWS
   }
 #endif //!HAS_MDNS_EMBEDDED

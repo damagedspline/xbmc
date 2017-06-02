@@ -46,7 +46,7 @@
 #include "utils/Variant.h"
 #include "XBDateTime.h"
 
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS)
 #ifndef _DEBUG
 #pragma comment(lib, "libmicrohttpd.lib")
 #else  // _DEBUG
@@ -1140,8 +1140,8 @@ struct MHD_Daemon* CWebServer::StartMHD(unsigned int flags, int port)
 #endif 
                           ,
                           port,
-                          nullptr,
-                          nullptr,
+                          NULL,
+                          NULL,
                           &CWebServer::AnswerToConnection,
                           this,
 
@@ -1152,7 +1152,7 @@ struct MHD_Daemon* CWebServer::StartMHD(unsigned int flags, int port)
                           MHD_OPTION_CONNECTION_TIMEOUT, timeout,
                           MHD_OPTION_URI_LOG_CALLBACK, &CWebServer::UriRequestLogger, this,
 #if (MHD_VERSION >= 0x00040001)
-                          MHD_OPTION_EXTERNAL_LOGGER, &logFromMHD, nullptr,
+                          MHD_OPTION_EXTERNAL_LOGGER, &logFromMHD, NULL,
 #endif // MHD_VERSION >= 0x00040001
                           MHD_OPTION_THREAD_STACK_SIZE, m_thread_stacksize,
                           MHD_OPTION_END);
