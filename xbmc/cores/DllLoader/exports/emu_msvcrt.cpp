@@ -74,7 +74,7 @@
 #include "utils/CharsetConverter.h"
 #include "utils/URIUtils.h"
 #endif
-#if !defined(TARGET_WINDOWS)
+#if !defined(TARGET_WINDOWS) && !defined(TARGET_WIN10)
 #include <dlfcn.h>
 #endif
 #include "utils/Environment.h"
@@ -118,10 +118,8 @@ extern "C" void __stdcall init_emu_environ()
 
   // python
 #if defined(TARGET_WINDOWS)
-  using KODI::PLATFORM::WINDOWS::FromW;
-  // fill our array with the windows system vars
   LPTSTR lpszVariable;
-  LPTCH lpvEnv;
+  LPTCH lpvEnv = NULL;
   lpvEnv = GetEnvironmentStrings();
   if (lpvEnv != NULL)
   {
@@ -134,6 +132,8 @@ extern "C" void __stdcall init_emu_environ()
     FreeEnvironmentStrings(lpvEnv);
   }
   dll_putenv("OS=win32");
+#elif defined(TARGET_WIN10)
+  dll_putenv("OS=win10");
 #elif defined(TARGET_DARWIN)
   dll_putenv("OS=darwin");
 #elif defined(TARGET_POSIX)
@@ -252,7 +252,7 @@ static int convert_fmode(const char* mode)
   return iMode;
 }
 
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
 static void to_finddata64i32(_wfinddata64i32_t *wdata, _finddata64i32_t *data)
 {
   std::string strname;
@@ -458,7 +458,7 @@ extern "C"
 
   void *dll_dlopen(const char *filename, int flag)
   {
-#if !defined(TARGET_WINDOWS)
+#if !defined(TARGET_WINDOWS) && !defined(TARGET_WIN10)
     return dlopen(filename, flag);
 #else
     return NULL;
@@ -1837,7 +1837,7 @@ extern "C"
     return CFile::Stat(path, buffer);
   }
 
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
   int dll_stat64i32(const char *path, struct _stat64i32 *buffer)
   {
     struct __stat64 a;
@@ -1901,7 +1901,7 @@ extern "C"
     return -1;
   }
 
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
   int dll_fstat64i32(int fd, struct _stat64i32 *buffer)
   {
     CFile* pFile = g_emuFileWrapper.GetFileXbmcByDescriptor(fd);

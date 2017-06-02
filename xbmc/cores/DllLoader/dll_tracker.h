@@ -24,7 +24,11 @@
 #include "PlatformDefs.h"
 #ifdef TARGET_WINDOWS
 #include "system.h" // for SOCKET
+#elif defined(TARGET_WIN10)
+#include <WinSock2.h>
+#include "system.h" // for SOCKET
 #endif
+
 
 #include <list>
 #include <map>

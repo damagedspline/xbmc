@@ -21,10 +21,11 @@
 #include "utils/log.h"
 #include "dll_util.h"
 
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
 #include "platform/win32/CharsetConverter.h"
 #include <windows.h>
 #endif
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -103,6 +104,22 @@ uintptr_t create_dummy_function(const char* strDllName, const char* strFunctionN
   return (uintptr_t)pData;
 }
 
+#ifdef TARGET_WIN10
+uintptr_t get_win_function_address(const char* strDllName, const char* strFunctionName)
+{
+  using KODI::PLATFORM::WINDOWS::ToW;
+  auto strDllNameW = ToW(strDllName);
+
+  HMODULE handle = LoadPackagedLibrary(strDllNameW.c_str(), NULL);
+  if (handle != NULL)
+  {
+    uintptr_t pGNSI = (uintptr_t)GetProcAddress(handle, strFunctionName);
+    if (pGNSI != NULL)
+      return pGNSI;
+  }
+  return 0;
+}
+#else
 uintptr_t get_win_function_address(const char* strDllName, const char* strFunctionName)
 {
 #ifdef TARGET_WINDOWS
@@ -122,6 +139,7 @@ uintptr_t get_win_function_address(const char* strDllName, const char* strFuncti
 #endif
   return 0;
 }
+#endif //TARGET_WIN10
 
 #ifdef _cplusplus
 }

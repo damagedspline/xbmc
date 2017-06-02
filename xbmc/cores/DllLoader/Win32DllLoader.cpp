@@ -140,9 +140,16 @@ bool Win32DllLoader::Load()
     return true;
 
   std::string strFileName = GetFileName();
-
   auto strDllW = ToW(CSpecialProtocol::TranslatePath(strFileName));
+
+#ifdef TARGET_WIN10
+  std::string strName = GetName();
+  auto strDllNameW = ToW(strName);
+  m_dllHandle = LoadPackagedLibrary(strDllNameW.c_str(), 0);
+#else
   m_dllHandle = LoadLibraryExW(strDllW.c_str(), NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
+#endif
+
   if (!m_dllHandle)
   {
     DWORD dw = GetLastError();
@@ -223,6 +230,7 @@ bool Win32DllLoader::HasSymbols()
 
 void Win32DllLoader::OverrideImports(const std::string &dll)
 {
+#ifndef TARGET_WIN10
   using KODI::PLATFORM::WINDOWS::ToW;
   auto strdllW = ToW(CSpecialProtocol::TranslatePath(dll));
   auto image_base = reinterpret_cast<BYTE*>(GetModuleHandleW(strdllW.c_str()));
@@ -304,6 +312,7 @@ void Win32DllLoader::OverrideImports(const std::string &dll)
       }
     }
   }
+#endif
 }
 
 bool Win32DllLoader::NeedsHooking(const char *dllName)
