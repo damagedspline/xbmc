@@ -30,7 +30,7 @@
 #include <limits.h>
 #include <string.h>
 
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
 
 /* pthread_mutex_* wrapper for win32 */
 #ifndef TARGET_POSIX

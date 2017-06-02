@@ -28,7 +28,6 @@
 #include <dxva.h>
 #include <d3d11.h>
 #include <Initguid.h>
-#include <windows.h>
 #include "cores/VideoPlayer/Process/ProcessInfo.h"
 #include "cores/VideoPlayer/VideoRenderers/RenderManager.h"
 #include "../DVDCodecUtils.h"
@@ -1049,6 +1048,7 @@ CDVDVideoCodec::VCReturn CDecoder::Check(AVCodecContext* avctx)
   && avctx->codec_id != AV_CODEC_ID_WMV3)
     return CDVDVideoCodec::VC_NONE;
   
+#ifndef TARGET_WIN10
   D3D11_VIDEO_DECODER_EXTENSION data = {0};
   union {
     DXVA_Status_H264 h264;
@@ -1076,6 +1076,7 @@ CDVDVideoCodec::VCReturn CDecoder::Check(AVCodecContext* avctx)
     if(status.vc1.bStatus)
       CLog::Log(LOGWARNING, "DXVA - decoder problem of status %d with %d", status.vc1.bStatus, status.vc1.bBufType);
   }
+#endif
   return CDVDVideoCodec::VC_NONE;
 }
 

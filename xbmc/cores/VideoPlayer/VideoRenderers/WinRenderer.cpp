@@ -38,6 +38,20 @@
 #include "platform/win32/WIN32Util.h"
 #include "windowing/WindowingFactory.h"
 
+#ifdef TARGET_WIN10
+#include "DirectXPackedVector.h"
+using namespace DirectX::PackedVector;
+
+DWORD D3DCOLOR_ARGB(float a, float r, float g, float b)
+{
+  XMCOLOR xColor;
+  XMVECTOR xVector = XMVectorSet(r, g, b, a);
+  XMStoreColor(&xColor, xVector);
+  DWORD color = xColor;
+  return color;
+}
+#endif
+
 typedef struct {
   RenderMethod  method;
   const char   *name;

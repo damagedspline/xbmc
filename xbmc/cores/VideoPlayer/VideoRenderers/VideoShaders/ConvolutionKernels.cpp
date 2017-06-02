@@ -18,8 +18,8 @@
  *
  */
 
-#ifdef TARGET_WINDOWS
-  #define _USE_MATH_DEFINES
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
+#define _USE_MATH_DEFINES
 #endif
 
 #include "ConvolutionKernels.h"

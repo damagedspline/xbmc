@@ -88,7 +88,7 @@ private:
   int m_time;
   std::string m_launchFilename;
   HWND m_hwndXbmc; 
-#if defined(TARGET_WINDOWS)
+#if defined(TARGET_WINDOWS) && !defined(TARGET_WIN10)
   POINT m_ptCursorpos;
   PROCESS_INFORMATION m_processInfo;
 #endif 

@@ -19,7 +19,7 @@ set(HEADERS BaseRenderer.h
             RenderManager.h
             DebugRenderer.h)
 
-if(CORE_SYSTEM_NAME STREQUAL windows)
+if(CORE_SYSTEM_NAME STREQUAL windows OR CORE_SYSTEM_NAME STREQUAL windowsstore)
   list(APPEND SOURCES WinRenderer.cpp
                       OverlayRendererDX.cpp)
   list(APPEND HEADERS WinRenderer.h
