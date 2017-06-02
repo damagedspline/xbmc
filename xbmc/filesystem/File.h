@@ -36,6 +36,7 @@
 #include "IFileTypes.h"
 #include "PlatformDefs.h"
 #include "URL.h"
+#include <sys/stat.h>
 
 class BitstreamStats;
 
@@ -145,7 +146,7 @@ public:
   * @param buffer      pointer to __stat64 buffer to receive information about file
   * @return zero of success, -1 otherwise.
   */
-  static int  Stat(const CURL& file, struct __stat64* buffer);
+  static int  Stat(const CURL& file, struct _stat64* buffer);
   static bool Rename(const CURL& file, const CURL& urlNew);
   static bool Copy(const CURL& file, const CURL& dest, XFILE::IFileCallback* pCallback = NULL, void* pContext = NULL);
   static bool SetHidden(const CURL& file, bool hidden);
@@ -164,7 +165,7 @@ public:
   * @param buffer      pointer to __stat64 buffer to receive information about file
   * @return zero of success, -1 otherwise.
   */
-  static int  Stat(const std::string& strFileName, struct __stat64* buffer);
+  static int  Stat(const std::string& strFileName, struct _stat64* buffer);
   /**
   * Fills struct __stat64 with information about currently open file
   * For st_mode function will set correctly _S_IFDIR (directory) flag and may set
@@ -176,7 +177,7 @@ public:
   * @param buffer      pointer to __stat64 buffer to receive information about file
   * @return zero of success, -1 otherwise.
   */
-  int Stat(struct __stat64 *buffer);
+  int Stat(struct _stat64 *buffer);
   static bool Delete(const std::string& strFileName);
   static bool Rename(const std::string& strFileName, const std::string& strNewFileName);
   static bool Copy(const std::string& strFileName, const std::string& strDest, XFILE::IFileCallback* pCallback = NULL, void* pContext = NULL);

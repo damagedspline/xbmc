@@ -43,7 +43,7 @@ class CPluginDirectory : public IDirectory
 {
 public:
   CPluginDirectory();
-  ~CPluginDirectory(void);
+  virtual ~CPluginDirectory(void);
   virtual bool GetDirectory(const CURL& url, CFileItemList& items);
   virtual bool AllowAll() const { return true; }
   virtual bool Exists(const CURL& url) { return true; }

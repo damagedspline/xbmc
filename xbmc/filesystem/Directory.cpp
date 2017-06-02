@@ -149,7 +149,8 @@ bool CDirectory::GetDirectory(const CURL& url, CFileItemList &items, const CHint
   try
   {
     CURL realURL = URIUtils::SubstitutePath(url);
-    std::shared_ptr<IDirectory> pDirectory(CDirectoryFactory::Create(realURL));
+    std::shared_ptr<IDirectory> pDirectory;
+    pDirectory.reset(CDirectoryFactory::Create(realURL));
     if (!pDirectory.get())
       return false;
 

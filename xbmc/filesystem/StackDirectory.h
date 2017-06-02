@@ -30,7 +30,7 @@ namespace XFILE
   {
   public:
     CStackDirectory();
-    ~CStackDirectory();
+    virtual ~CStackDirectory();
     virtual bool GetDirectory(const CURL& url, CFileItemList& items);
     virtual bool AllowAll() const { return true; }
     static std::string GetStackedTitlePath(const std::string &strPath);

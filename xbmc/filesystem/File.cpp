@@ -478,14 +478,14 @@ bool CFile::Exists(const CURL& file, bool bUseCache /* = true */)
   return false;
 }
 
-int CFile::Stat(struct __stat64 *buffer)
+int CFile::Stat(struct _stat64 *buffer)
 {
   if (!buffer)
     return -1;
 
   if (!m_pFile)
   {
-    memset(buffer, 0, sizeof(struct __stat64));
+    memset(buffer, 0, sizeof(struct _stat64));
     errno = ENOENT;
     return -1;
   }
@@ -493,13 +493,13 @@ int CFile::Stat(struct __stat64 *buffer)
   return m_pFile->Stat(buffer);
 }
 
-int CFile::Stat(const std::string& strFileName, struct __stat64* buffer)
+int CFile::Stat(const std::string& strFileName, struct _stat64* buffer)
 {
   const CURL pathToUrl(strFileName);
   return Stat(pathToUrl, buffer);
 }
 
-int CFile::Stat(const CURL& file, struct __stat64* buffer)
+int CFile::Stat(const CURL& file, struct _stat64* buffer)
 {
   if (!buffer)
     return -1;

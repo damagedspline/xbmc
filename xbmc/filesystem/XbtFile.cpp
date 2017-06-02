@@ -21,7 +21,7 @@
 #include <algorithm>
 #include <string.h>
 
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS)
 #ifdef NDEBUG
 #pragma comment(lib,"lzo2.lib")
 #elif defined _WIN64

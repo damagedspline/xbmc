@@ -32,6 +32,11 @@
 #include "platform/win32/CharsetConverter.h"
 #endif
 
+#ifdef TARGET_WIN10
+#include "platform/win32/CharsetConverter.h"
+using namespace KODI::PLATFORM::WINDOWS;
+#endif
+
 using namespace XFILE;
 
 CISO9660Directory::CISO9660Directory(void)
@@ -69,7 +74,7 @@ bool CISO9660Directory::GetDirectory(const CURL& url, CFileItemList &items)
     if (strSearchMask[i] == '/') strSearchMask[i] = '\\';
   }
 
-  hFind = m_isoReader.FindFirstFile((char*)strSearchMask.c_str(), &wfd);
+  hFind = m_isoReader.FindFirstFile9660((char*)strSearchMask.c_str(), &wfd);
   if (hFind == NULL)
     return false;
 
@@ -77,9 +82,9 @@ bool CISO9660Directory::GetDirectory(const CURL& url, CFileItemList &items)
   {
     if (wfd.cFileName[0] != 0)
     {
-      if ( (wfd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) )
+      if ((wfd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
       {
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
         auto strDir = KODI::PLATFORM::WINDOWS::FromW(wfd.cFileName);
 #else
         std::string strDir = wfd.cFileName;
@@ -93,13 +98,13 @@ bool CISO9660Directory::GetDirectory(const CURL& url, CFileItemList &items)
           pItem->m_bIsFolder = true;
           FILETIME localTime;
           FileTimeToLocalFileTime(&wfd.ftLastWriteTime, &localTime);
-          pItem->m_dateTime=localTime;
+          pItem->m_dateTime = localTime;
           items.Add(pItem);
         }
       }
       else
       {
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
         auto strDir = KODI::PLATFORM::WINDOWS::FromW(wfd.cFileName);
 #else
         std::string strDir = wfd.cFileName;
@@ -110,12 +115,11 @@ bool CISO9660Directory::GetDirectory(const CURL& url, CFileItemList &items)
         pItem->m_dwSize = CUtil::ToInt64(wfd.nFileSizeHigh, wfd.nFileSizeLow);
         FILETIME localTime;
         FileTimeToLocalFileTime(&wfd.ftLastWriteTime, &localTime);
-        pItem->m_dateTime=localTime;
+        pItem->m_dateTime = localTime;
         items.Add(pItem);
       }
     }
-  }
-  while (m_isoReader.FindNextFile(hFind, &wfd));
+  } while (m_isoReader.FindNextFile(hFind, &wfd));
   m_isoReader.FindClose(hFind);
 
   return true;

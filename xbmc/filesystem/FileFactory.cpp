@@ -23,7 +23,7 @@
 #include "FileFactory.h"
 #ifdef TARGET_POSIX
 #include "posix/PosixFile.h"
-#elif defined(TARGET_WINDOWS)
+#elif defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
 #include "win32/Win32File.h"
 #endif // TARGET_WINDOWS
 #include "CurlFile.h"
@@ -78,6 +78,9 @@
 #include "ServiceBroker.h"
 #include "addons/VFSEntry.h"
 #include "addons/BinaryAddonCache.h"
+#ifdef TARGET_WIN10
+#include "win10/WinLibraryFile.h"
+#endif
 
 using namespace ADDON;
 using namespace XFILE;
@@ -130,8 +133,15 @@ IFile* CFileFactory::CreateLoader(const CURL& url)
   else if (url.IsProtocol("image")) return new CImageFile();
 #ifdef TARGET_POSIX
   else if (url.IsProtocol("file") || url.GetProtocol().empty()) return new CPosixFile();
-#elif defined(TARGET_WINDOWS)
-  else if (url.IsProtocol("file") || url.GetProtocol().empty()) return new CWin32File();
+#elif defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
+  else if (url.IsProtocol("file") || url.GetProtocol().empty())
+  {
+#ifdef TARGET_WIN10
+    if (CWinLibraryFile::IsInAccessList(url))
+      return new CWinLibraryFile();
+#endif
+    return new CWin32File();
+  }
 #endif // TARGET_WINDOWS 
 #if defined(HAS_FILESYSTEM_CDDA) && defined(HAS_DVD_DRIVE)
   else if (url.IsProtocol("cdda")) return new CFileCDDA();
@@ -174,6 +184,9 @@ IFile* CFileFactory::CreateLoader(const CURL& url)
 #endif
 #ifdef HAS_UPNP
     else if (url.IsProtocol("upnp")) return new CUPnPFile();
+#endif
+#ifdef TARGET_WIN10
+    else if (CWinLibraryFile::IsValid(url)) return new CWinLibraryFile();
 #endif
   }
 

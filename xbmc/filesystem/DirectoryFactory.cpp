@@ -45,7 +45,7 @@
 
 #ifdef TARGET_POSIX
 #include "posix/PosixDirectory.h"
-#elif defined(TARGET_WINDOWS)
+#elif defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
 #include "win32/Win32Directory.h"
 #endif
 #ifdef HAS_FILESYSTEM_SMB
@@ -93,6 +93,9 @@
 #include "ServiceBroker.h"
 #include "addons/VFSEntry.h"
 #include "addons/BinaryAddonCache.h"
+#ifdef TARGET_WIN10
+#include "filesystem/win10/WinLibraryDirectory.h"
+#endif
 
 using namespace ADDON;
 
@@ -116,7 +119,7 @@ IDirectory* CDirectoryFactory::Create(const CURL& url)
 
 #ifdef TARGET_POSIX
   if (url.GetProtocol().empty() || url.IsProtocol("file")) return new CPosixDirectory();
-#elif defined(TARGET_WINDOWS)
+#elif defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
   if (url.GetProtocol().empty() || url.IsProtocol("file")) return new CWin32Directory();
 #else
 #error Local directory access is not implemented for this platform
@@ -183,6 +186,9 @@ IDirectory* CDirectoryFactory::Create(const CURL& url)
 #endif
 #ifdef HAS_FILESYSTEM_NFS
     if (url.IsProtocol("nfs")) return new CNFSDirectory();
+#endif
+#ifdef TARGET_WIN10
+    if (CWinLibraryDirectory::IsValid(url)) return new CWinLibraryDirectory();
 #endif
   }
 

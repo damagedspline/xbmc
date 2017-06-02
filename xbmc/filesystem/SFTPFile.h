@@ -26,7 +26,11 @@
 #include "threads/CriticalSection.h"
 
 #include <libssh/libssh.h>
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
+#define ssize_t SSIZE_T
+#include <libssh/sftp.h>
+#undef ssize_t
+#elif defined(TARGET_WIN10)
 #define ssize_t SSIZE_T
 #include <libssh/sftp.h>
 #undef ssize_t
