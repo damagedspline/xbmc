@@ -25,7 +25,9 @@
 #include "utils/log.h"
 #include "windowing/WindowingFactory.h"
 
+#ifndef TARGET_WIN10
 #pragma comment(lib, "d3dcompiler.lib")
+#endif
 
 size_t CD3DHelper::BitsPerPixel(DXGI_FORMAT fmt)
 {

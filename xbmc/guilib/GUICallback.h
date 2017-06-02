@@ -21,7 +21,10 @@
  *
  */
 
+#ifndef TARGET_WIN10
 #include "assert.h"
+#endif
+
 #include "memory.h"
 
 #ifndef __GNUC__

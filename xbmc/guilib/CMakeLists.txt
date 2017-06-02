@@ -188,7 +188,7 @@ if(OPENGLES_FOUND)
                       TexturePi.h)
 endif()
 
-if(CORE_SYSTEM_NAME STREQUAL windows)
+if(CORE_SYSTEM_NAME STREQUAL windows OR CORE_SYSTEM_NAME STREQUAL windowsstore)
   list(APPEND SOURCES D3DResource.cpp
                       GUIFontTTFDX.cpp
                       GUIShaderDX.cpp
@@ -203,7 +203,7 @@ endif()
 
 core_add_library(guilib)
 
-if(CORE_SYSTEM_NAME STREQUAL windows)
+if(CORE_SYSTEM_NAME STREQUAL windows OR CORE_SYSTEM_NAME STREQUAL windowsstore)
   set(SHADERS_VERTEX guishader_vert.hlsl)
   set(SHADERS_PIXEL guishader_checkerboard_right.hlsl
                     guishader_checkerboard_left.hlsl

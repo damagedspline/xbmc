@@ -28,12 +28,19 @@
 #include "GUIWindow.h"
 #include "WindowIDs.h"
 
+#ifdef TARGET_WIN10
+#pragma pack(push, 8)
+#endif
 enum class DialogModalityType
 {
   MODELESS,
   MODAL,
   PARENTLESS_MODAL
 };
+#ifdef TARGET_WIN10
+#pragma pack(pop)
+#endif
+
 
 /*!
  \ingroup winmsg

@@ -37,12 +37,17 @@
 
 // stuff for freetype
 #include <ft2build.h>
+
+#ifdef TARGET_WIN10
+#define generic GenericFromFreeTypeLibrary
+#endif
+
 #include FT_FREETYPE_H
 #include FT_GLYPH_H
 #include FT_OUTLINE_H
 #include FT_STROKER_H
 
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS)
 #ifdef NDEBUG
 #pragma comment(lib, "freetype.lib")
 #else
@@ -89,7 +94,7 @@ public:
       return NULL;
 
     memoryBuf.clear();
-#ifndef TARGET_WINDOWS
+#if !defined(TARGET_WINDOWS) && !defined(TARGET_WIN10)
     if (!realFile.GetProtocol().empty())
 #endif // ! TARGET_WINDOWS
     {
@@ -102,7 +107,7 @@ public:
       if (FT_New_Memory_Face(m_library, (const FT_Byte*)memoryBuf.get(), memoryBuf.size(), 0, &face) != 0)
         return NULL;
     }
-#ifndef TARGET_WINDOWS
+#if !defined(TARGET_WINDOWS) && !defined(TARGET_WIN10)
     else if (FT_New_Face( m_library, realFile.GetFileName().c_str(), 0, &face ))
       return NULL;
 #endif // ! TARGET_WINDOWS

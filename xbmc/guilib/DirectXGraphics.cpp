@@ -32,6 +32,7 @@ void XPhysicalFree(LPVOID lpAddress)
   free(lpAddress);
 }
 
+#ifndef TARGET_WIN10
 D3DFORMAT GetD3DFormat(XB_D3DFORMAT format)
 {
   switch (format)
@@ -51,6 +52,7 @@ D3DFORMAT GetD3DFormat(XB_D3DFORMAT format)
     return D3DFMT_UNKNOWN;
   }
 }
+#endif
 
 DWORD BytesPerPixelFromFormat(XB_D3DFORMAT format)
 {

@@ -431,8 +431,16 @@ void CGraphicContext::SetVideoResolutionInternal(RESOLUTION res, bool forceUpdat
     g_Windowing.SetFullScreen(true,  info_org, false);
 #endif
   }
-  else if (lastRes >= RES_DESKTOP )
-    g_Windowing.SetFullScreen(false, info_org, false);
+  else if (lastRes >= RES_DESKTOP)
+  {
+    if (!g_Windowing.SetFullScreen(false, info_org, false))
+    {
+      g_advancedSettings.m_fullScreen = false;
+      m_bFullScreenRoot = false;
+      g_Windowing.ResizeWindow(info_org.iWidth, info_org.iHeight, -1, -1);
+    }
+
+  }
   else
     g_Windowing.ResizeWindow(info_org.iWidth, info_org.iHeight, -1, -1);
 
