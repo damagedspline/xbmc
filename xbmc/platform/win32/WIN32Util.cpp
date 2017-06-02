@@ -38,18 +38,28 @@
 #include "utils/SystemInfo.h"
 #include "utils/Environment.h"
 #include "utils/StringUtils.h"
+#ifndef TARGET_WIN10
 #include "platform/win32/crts_caller.h"
+#endif
 #include "CompileInfo.h"
 #include "platform/win32/CharsetConverter.h"
 
+#ifndef TARGET_WIN10
 #include <cassert>
-
-
+#endif
 #include <locale.h>
 
+#ifndef TARGET_WIN10
 extern HWND g_hWnd;
+#endif
 
 using namespace MEDIA_DETECT;
+
+#ifdef TARGET_WIN10
+#include <ppltasks.h>
+using namespace Windows::Devices::Power;
+using namespace Windows::Graphics::Display;
+#endif
 
 CWIN32Util::CWIN32Util(void)
 {
@@ -59,6 +69,14 @@ CWIN32Util::~CWIN32Util(void)
 {
 }
 
+#ifdef TARGET_WIN10
+int CWIN32Util::GetDriveStatus(const std::string &strPath, bool bStatusEx)
+{
+  CLog::Log(LOGERROR, "%s is not implemented", __FUNCTION__);
+  CLog::Log(LOGERROR, __FUNCTION__": Could not determine tray status %d", GetLastError());
+  return -1;
+}
+#else
 int CWIN32Util::GetDriveStatus(const std::string &strPath, bool bStatusEx)
 {
   using KODI::PLATFORM::WINDOWS::ToW;
@@ -176,6 +194,7 @@ int CWIN32Util::GetDriveStatus(const std::string &strPath, bool bStatusEx)
   CLog::Log(LOGERROR, __FUNCTION__": Could not determine tray status %d", GetLastError());
   return -1;
 }
+#endif
 
 char CWIN32Util::FirstDriveFromMask (ULONG unitmask)
 {
@@ -188,6 +207,13 @@ char CWIN32Util::FirstDriveFromMask (ULONG unitmask)
     return (i + 'A');
 }
 
+#ifdef TARGET_WIN10
+bool CWIN32Util::PowerManagement(PowerState State)
+{
+  static bool gotShutdownPrivileges = false;
+  return gotShutdownPrivileges;
+}
+#else
 bool CWIN32Util::PowerManagement(PowerState State)
 {
   static bool gotShutdownPrivileges = false;
@@ -246,7 +272,27 @@ bool CWIN32Util::PowerManagement(PowerState State)
     break;
   }
 }
+#endif
 
+#ifdef TARGET_WIN10
+int CWIN32Util::BatteryLevel()
+{
+  int result = 0;
+  auto aggBattery = Battery::AggregateBattery;
+  auto report = aggBattery->GetReport();
+
+  int remaining = report->RemainingCapacityInMilliwattHours->Value;
+  int full = report->FullChargeCapacityInMilliwattHours->Value;
+
+  if (full != 0 && remaining != 0)
+  {
+    float percent = static_cast<float>(remaining) / static_cast<float>(full);
+    result = static_cast<int> (percent * 100.0f);
+  }
+
+  return result;
+}
+#else
 int CWIN32Util::BatteryLevel()
 {
   SYSTEM_POWER_STATUS SystemPowerStatus;
@@ -256,7 +302,15 @@ int CWIN32Util::BatteryLevel()
 
   return 0;
 }
+#endif
 
+#ifdef TARGET_WIN10
+bool CWIN32Util::XBMCShellExecute(const std::string &strPath, bool bWaitForScriptExit)
+{
+  CLog::Log(LOGERROR, "%s is not implemented", __FUNCTION__);
+  return false;
+}
+#else
 bool CWIN32Util::XBMCShellExecute(const std::string &strPath, bool bWaitForScriptExit)
 {
   std::string strCommand = strPath;
@@ -329,7 +383,17 @@ bool CWIN32Util::XBMCShellExecute(const std::string &strPath, bool bWaitForScrip
 
   return ret;
 }
+#endif
 
+#ifdef TARGET_WIN10
+std::vector<std::string> CWIN32Util::GetDiskUsage()
+{
+  CLog::Log(LOGERROR, "%s is not implemented", __FUNCTION__);
+  std::vector<std::string> result;
+  result.push_back("GetDiskUsage not inplemented");
+  return result;
+}
+#else
 std::vector<std::string> CWIN32Util::GetDiskUsage()
 {
   std::vector<std::string> result;
@@ -360,7 +424,20 @@ std::vector<std::string> CWIN32Util::GetDiskUsage()
   }
   return result;
 }
+#endif
 
+#ifdef TARGET_WIN10
+std::string CWIN32Util::GetResInfoString()
+{
+  CLog::Log(LOGERROR, "%s is not implemented", __FUNCTION__);
+  auto displayInfo = DisplayInformation::GetForCurrentView();
+
+  return StringUtils::Format("Desktop Resolution: %dx%d"
+      , displayInfo->ScreenWidthInRawPixels
+      , displayInfo->ScreenHeightInRawPixels
+      );
+}
+#else
 std::string CWIN32Util::GetResInfoString()
 {
   DEVMODE devmode;
@@ -369,7 +446,15 @@ std::string CWIN32Util::GetResInfoString()
   EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &devmode);
   return StringUtils::Format("Desktop Resolution: %dx%d %dBit at %dHz",devmode.dmPelsWidth,devmode.dmPelsHeight,devmode.dmBitsPerPel,devmode.dmDisplayFrequency);
 }
+#endif
 
+#ifdef TARGET_WIN10
+int CWIN32Util::GetDesktopColorDepth()
+{
+  CLog::Log(LOGERROR, "%s is not implemented", __FUNCTION__);
+  return 32;
+}
+#else
 int CWIN32Util::GetDesktopColorDepth()
 {
   DEVMODE devmode;
@@ -378,7 +463,9 @@ int CWIN32Util::GetDesktopColorDepth()
   EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &devmode);
   return (int)devmode.dmBitsPerPel;
 }
+#endif
 
+#ifndef TARGET_WIN10
 std::string CWIN32Util::GetSpecialFolder(int csidl)
 {
   std::string strProfilePath;
@@ -397,12 +484,30 @@ std::string CWIN32Util::GetSpecialFolder(int csidl)
   delete[] buf;
   return strProfilePath;
 }
+#endif
 
+#ifdef TARGET_WIN10
+std::string CWIN32Util::GetSystemPath()
+{
+  // access to system folder is not allowed in a UWP app
+  return "";
+}
+#else
 std::string CWIN32Util::GetSystemPath()
 {
   return GetSpecialFolder(CSIDL_SYSTEM);
 }
+#endif
 
+#ifdef TARGET_WIN10
+std::string CWIN32Util::GetProfilePath()
+{
+  using KODI::PLATFORM::WINDOWS::FromW;
+
+  auto localFolder = Windows::Storage::ApplicationData::Current->LocalFolder;
+  return FromW(std::wstring(localFolder->Path->Data()));
+}
+#else
 std::string CWIN32Util::GetProfilePath()
 {
   std::string strProfilePath;
@@ -420,6 +525,7 @@ std::string CWIN32Util::GetProfilePath()
 
   return strProfilePath;
 }
+#endif
 
 std::string CWIN32Util::UncToSmb(const std::string &strPath)
 {
@@ -555,7 +661,13 @@ __time64_t CWIN32Util::fileTimeToTimeT(const LARGE_INTEGER& ftimeli)
   return fileTimeToTimeT(__int64(ftimeli.QuadPart));
 }
 
-
+#ifdef TARGET_WIN10
+HRESULT CWIN32Util::ToggleTray(const char cDriveLetter)
+{
+  CLog::Log(LOGERROR, "%s is not implemented", __FUNCTION__);
+  return false;
+}
+#else
 HRESULT CWIN32Util::ToggleTray(const char cDriveLetter)
 {
   using namespace KODI::PLATFORM::WINDOWS;
@@ -593,6 +705,7 @@ HRESULT CWIN32Util::ToggleTray(const char cDriveLetter)
   CloseHandle(hDrive);
   return bRet? S_OK : S_FALSE;
 }
+#endif
 
 HRESULT CWIN32Util::EjectTray(const char cDriveLetter)
 {
@@ -636,6 +749,7 @@ HRESULT CWIN32Util::CloseTray(const char cDriveLetter)
 // http://www.codeproject.com/KB/system/RemoveDriveByLetter.aspx
 // http://www.techtalkz.com/microsoft-device-drivers/250734-remove-usb-device-c-3.html
 
+#ifndef TARGET_WIN10
 DEVINST CWIN32Util::GetDrivesDevInstByDiskNumber(long DiskNumber)
 {
 
@@ -711,7 +825,15 @@ DEVINST CWIN32Util::GetDrivesDevInstByDiskNumber(long DiskNumber)
   SetupDiDestroyDeviceInfoList(hDevInfo);
   return 0;
 }
+#endif
 
+#ifdef TARGET_WIN10
+bool CWIN32Util::EjectDrive(const char cDriveLetter)
+{
+  CLog::Log(LOGERROR, "%s is not implemented", __FUNCTION__);
+  return false;
+}
+#else
 bool CWIN32Util::EjectDrive(const char cDriveLetter)
 {
   using KODI::PLATFORM::WINDOWS::ToW;
@@ -760,50 +882,15 @@ bool CWIN32Util::EjectDrive(const char cDriveLetter)
 
   return bSuccess;
 }
-
-#ifdef HAS_GL
-void CWIN32Util::CheckGLVersion()
-{
-  if(CWIN32Util::HasGLDefaultDrivers())
-  {
-    MessageBox(NULL, "MS default OpenGL drivers detected. Please get OpenGL drivers from your video card vendor", "XBMC: Fatal Error", MB_OK|MB_ICONERROR);
-    exit(1);
-  }
-
-  if(!CWIN32Util::HasReqGLVersion())
-  {
-    if(MessageBox(NULL, "Your OpenGL version doesn't meet the XBMC requirements", "XBMC: Warning", MB_OKCANCEL|MB_ICONWARNING) == IDCANCEL)
-    {
-      exit(1);
-    }
-  }
-}
-
-bool CWIN32Util::HasGLDefaultDrivers()
-{
-  unsigned int a=0,b=0;
-
-  std::string strVendor = g_Windowing.GetRenderVendor();
-  g_Windowing.GetRenderVersion(a, b);
-
-  if(strVendor.find("Microsoft")!=strVendor.npos && a==1 && b==1)
-    return true;
-  else
-    return false;
-}
-
-bool CWIN32Util::HasReqGLVersion()
-{
-  unsigned int a=0,b=0;
-
-  g_Windowing.GetRenderVersion(a, b);
-  if((a>=2) || (a == 1 && b >= 3))
-    return true;
-  else
-    return false;
-}
 #endif
 
+#ifdef TARGET_WIN10
+BOOL CWIN32Util::IsCurrentUserLocalAdministrator()
+{
+  // UWP apps never run as admin
+  return false;
+}
+#else
 BOOL CWIN32Util::IsCurrentUserLocalAdministrator()
 {
   BOOL b;
@@ -827,7 +914,14 @@ BOOL CWIN32Util::IsCurrentUserLocalAdministrator()
 
   return(b);
 }
+#endif
 
+#ifdef TARGET_WIN10
+void CWIN32Util::GetDrivesByType(VECSOURCES &localDrives, Drive_Types eDriveType, bool bonlywithmedia)
+{
+  CLog::Log(LOGERROR, "%s is not implemented", __FUNCTION__);
+}
+#else
 void CWIN32Util::GetDrivesByType(VECSOURCES &localDrives, Drive_Types eDriveType, bool bonlywithmedia)
 {
   WCHAR* pcBuffer= NULL;
@@ -932,6 +1026,7 @@ void CWIN32Util::GetDrivesByType(VECSOURCES &localDrives, Drive_Types eDriveType
     delete[] pcBuffer;
   }
 }
+#endif
 
 std::string CWIN32Util::GetFirstOpticalDrive()
 {
@@ -998,7 +1093,7 @@ extern "C" {
    * POSSIBILITY OF SUCH DAMAGE.
    */
 
-  #if !defined(TARGET_WINDOWS)
+  #if !defined(TARGET_WINDOWS) && !defined(TARGET_WIN10)
   #include <sys/cdefs.h>
   #endif
 
@@ -1006,8 +1101,8 @@ extern "C" {
   __RCSID("$NetBSD: strptime.c,v 1.25 2005/11/29 03:12:00 christos Exp $");
   #endif
 
-  #if !defined(TARGET_WINDOWS)
-  #include "namespace.h"
+#if !defined(TARGET_WINDOWS) && !defined(TARGET_WIN10)
+#include "namespace.h"
   #include <sys/localedef.h>
   #else
   typedef unsigned char u_char;
@@ -1017,7 +1112,7 @@ extern "C" {
   #include <locale.h>
   #include <string.h>
   #include <time.h>
-  #if !defined(TARGET_WINDOWS)
+#if !defined(TARGET_WINDOWS) && !defined(TARGET_WIN10)
   #include <tzfile.h>
   #endif
 
@@ -1025,7 +1120,7 @@ extern "C" {
   __weak_alias(strptime,_strptime)
   #endif
 
-  #if !defined(TARGET_WINDOWS)
+  #if !defined(TARGET_WINDOWS) && !defined(TARGET_WIN10)
   #define  _ctloc(x)    (_CurrentTimeLocale->x)
   #else
   #define _ctloc(x)   (x)
@@ -1354,7 +1449,7 @@ extern "C" {
   }
 }
 
-
+#ifndef TARGET_WIN10
 LONG CWIN32Util::UtilRegGetValue( const HKEY hKey, const char *const pcKey, DWORD *const pdwType, char **const ppcBuffer, DWORD *const pdwSizeBuff, const DWORD dwSizeAdd )
 {
   using KODI::PLATFORM::WINDOWS::ToW;
@@ -1433,6 +1528,7 @@ bool CWIN32Util::GetFocussedProcess(std::string &strProcessFile)
 
   return true;
 }
+#endif
 
 // Adjust the src rectangle so that the dst is always contained in the target rectangle.
 void CWIN32Util::CropSource(CRect& src, CRect& dst, CRect target, UINT rotation /* = 0 */)
@@ -1529,8 +1625,10 @@ void CWIN32Util::CropSource(CRect& src, CRect& dst, CRect target, UINT rotation 
 
 void CWinIdleTimer::StartZero()
 {
+#ifndef TARGET_WIN10
   if (!g_application.IsDPMSActive())
     SetThreadExecutionState(ES_SYSTEM_REQUIRED|ES_DISPLAY_REQUIRED);
+#endif
   CStopWatch::StartZero();
 }
 
@@ -1563,6 +1661,13 @@ extern "C"
 // detect if a drive is a usb device
 // code taken from http://banderlogi.blogspot.com/2011/06/enum-drive-letters-attached-for-usb.html
 
+#ifdef TARGET_WIN10
+bool CWIN32Util::IsUsbDevice(const std::wstring &strWdrive)
+{
+  CLog::Log(LOGERROR, "%s is not implemented", __FUNCTION__);
+  return false;
+}
+#else
 bool CWIN32Util::IsUsbDevice(const std::wstring &strWdrive)
 {
   if (strWdrive.size() < 2)
@@ -1607,6 +1712,7 @@ bool CWIN32Util::IsUsbDevice(const std::wstring &strWdrive)
 
   return BusTypeUsb == busType;
  }
+#endif
 
 std::string CWIN32Util::WUSysMsg(DWORD dwError)
 {
@@ -1622,7 +1728,12 @@ std::string CWIN32Util::WUSysMsg(DWORD dwError)
 
 bool CWIN32Util::SetThreadLocalLocale(bool enable /* = true */)
 {
+#ifdef TARGET_WIN10
+  CLog::Log(LOGERROR, "%s is not implemented", __FUNCTION__);
+	return false;
+#else
   const int param = enable ? _ENABLE_PER_THREAD_LOCALE : _DISABLE_PER_THREAD_LOCALE;
   return CALL_IN_CRTS(_configthreadlocale, param) != -1;
+#endif
 }
 

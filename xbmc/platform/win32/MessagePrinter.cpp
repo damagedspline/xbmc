@@ -22,7 +22,13 @@
 #include "CompileInfo.h"
 #include "platform/win32/CharsetConverter.h"
 
-#include <windows.h>
+#ifdef TARGET_WIN10
+int WINAPI MessageBox(void* hWnd, const char* lpText, const char* lpCaption, UINT uType)
+{
+  CLog::Log(LOGERROR, "%s is not implemented", __FUNCTION__);
+  return IDOK;
+}
+#endif // TARGET_WIN10
 
 void CMessagePrinter::DisplayMessage(const std::string& message)
 {

@@ -1,7 +1,7 @@
 #pragma once
 /*
- *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      Copyright (C) 2005-2017 Team Kodi
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,8 +18,14 @@
  *  <http://www.gnu.org/licenses/>.
  *
  */
-#include <inttypes.h>
 
-#ifndef TARGET_WIN10
-#include <io.h>
+#include "rendering/dx/DeviceResources.h"
+#include <memory>
+
+#if defined XBMC_EXPORT
+#define DECLDIR __declspec(dllexport)
+#else
+#define DECLDIR __declspec(dllimport)
 #endif
+
+DECLDIR Windows::ApplicationModel::Core::IFrameworkViewSource^ GetViewProvider();

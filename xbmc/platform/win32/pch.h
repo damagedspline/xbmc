@@ -24,6 +24,7 @@
 #include <string>
 #include <iostream>
 #include <fstream>
+
 #if !(defined(_WINSOCKAPI_) || defined(_WINSOCK_H))
 #include <winsock2.h>
 #endif
@@ -34,17 +35,25 @@
 #include <comdef.h>
 #define DIRECTINPUT_VERSION 0x0800
 #include "DInput.h"
+
+#ifndef TARGET_WIN10
 #include "DSound.h"
+#endif
+
 #ifdef HAS_DX
+
+#ifndef TARGET_WIN10
 #include "d3d9.h"
+#include <d3d9types.h>
+#endif
+
 #include "d3d11_1.h"
 #include "dxgi.h"
 #include "d3dcompiler.h"
 #include "directxmath.h"
 #include "directxcolors.h" 
-#else
-#include <d3d9types.h>
 #endif
+
 #include <memory>
 // anything below here should be headers that very rarely (hopefully never)
 // change yet are included almost everywhere.

@@ -19,7 +19,6 @@
 #define NOMINMAX
 #endif
 
-#include <windows.h>
 #include <sal.h>
 
 #ifdef __cplusplus
