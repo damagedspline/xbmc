@@ -26,6 +26,12 @@
 
 // stuff for freetype
 #include <ft2build.h>
+
+#ifdef TARGET_WIN10
+#define generic GenericFromFreeTypeLibrary
+#endif
+
+
 #include FT_FREETYPE_H
 #include FT_CACHE_H
 #include FT_CACHE_SMALL_BITMAPS_H

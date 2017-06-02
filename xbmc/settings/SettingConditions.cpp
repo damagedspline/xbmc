@@ -345,6 +345,10 @@ void CSettingConditions::Initialize()
   m_simpleConditions.insert("has_dx");
   m_simpleConditions.insert("hasdxva2");
 #endif
+#if defined(TARGET_WIN10) && defined(HAS_DX)
+  m_simpleConditions.insert("has_dx");
+  m_simpleConditions.insert("hasdxva2"); // TODO: Need to update this to Win10 implemenation
+#endif
 #ifdef HAVE_LCMS2
   m_simpleConditions.insert("have_lcms2");
 #endif

@@ -26,13 +26,14 @@
 #include "utils/StringUtils.h"
 #include "utils/URIUtils.h"
 
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
 #include <windows.h>
 #else
 #include <cstdlib>
 #include <climits>
 #include <ctime>
 #endif
+
 
 class CTempFile : public XFILE::CFile
 {
@@ -56,8 +57,8 @@ public:
     }
     strcpy(tmp, m_ptempFilePath.c_str());
 
-#ifdef TARGET_WINDOWS
-    using namespace KODI::PLATFORM::WINDOWS;
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
+using namespace KODI::PLATFORM::WINDOWS;
     wchar_t tmpW[MAX_PATH];
     if (!GetTempFileName(ToW(CSpecialProtocol::TranslatePath("special://temp/")).c_str(),
                          L"xbmctempfile", 0, tmpW))

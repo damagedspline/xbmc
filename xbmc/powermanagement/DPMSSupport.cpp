@@ -24,7 +24,7 @@
 #include "windowing/WindowingFactory.h"
 #include <assert.h>
 #include <string>
-#ifdef TARGET_WINDOWS
+#if defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
 #include "guilib/GraphicContext.h"
 #endif
 
@@ -180,7 +180,7 @@ bool DPMSSupport::PlatformSpecificDisablePowerSaving()
 }
 
 /////  Add other platforms here.
-#elif defined(TARGET_WINDOWS)
+#elif defined(TARGET_WINDOWS) || defined(TARGET_WIN10)
 void DPMSSupport::PlatformSpecificInit()
 {
   // Assume we support DPMS. Is there a way to test it?
@@ -190,6 +190,10 @@ void DPMSSupport::PlatformSpecificInit()
 
 bool DPMSSupport::PlatformSpecificEnablePowerSaving(PowerSavingMode mode)
 {
+#ifdef TARGET_WIN10
+  CLog::Log(LOGERROR, "%s is not implemented", __FUNCTION__);
+  return false;
+#else
   if(!g_graphicsContext.IsFullScreenRoot())
   {
     CLog::Log(LOGDEBUG, "DPMS: not in fullscreen, power saving disabled");
@@ -206,12 +210,18 @@ bool DPMSSupport::PlatformSpecificEnablePowerSaving(PowerSavingMode mode)
   default:
     return true;
   }
+#endif
 }
 
 bool DPMSSupport::PlatformSpecificDisablePowerSaving()
 {
+#ifdef TARGET_WIN10
+  CLog::Log(LOGERROR, "%s is not implemented", __FUNCTION__);
+  return false;
+#else
   // Turn display on
   return SendMessage(g_Windowing.GetHwnd(), WM_SYSCOMMAND, SC_MONITORPOWER, (LPARAM) -1) == 0;
+#endif
 }
 
 #elif defined(TARGET_DARWIN_OSX)

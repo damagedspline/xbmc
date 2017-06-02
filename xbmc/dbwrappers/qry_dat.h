@@ -53,7 +53,10 @@ enum fType {
 	ft_Object
     };
 
-
+#ifdef TARGET_WIN10
+#pragma pack(push)
+#pragma pack(8)
+#endif
 
 class field_value {
 private:
@@ -240,6 +243,10 @@ public:
   record_prop record_header;
   query_data records;
 };
+
+#ifdef TARGET_WIN10
+#pragma pack(pop)
+#endif
 
 } // namespace
 
