@@ -11,7 +11,7 @@
 |       includes
 +---------------------------------------------------------------------*/
 #include "NptWin32MessageQueue.h"
-
+#ifndef TARGET_WIN10
 /*----------------------------------------------------------------------
 |       platform adaptation
 +---------------------------------------------------------------------*/
@@ -180,4 +180,7 @@ NPT_Win32WindowMessageQueue::HandleMessage(NPT_Message*        message,
     delete message;
     return result;
 }
+
+#endif // TARGET_WIN10
+
 

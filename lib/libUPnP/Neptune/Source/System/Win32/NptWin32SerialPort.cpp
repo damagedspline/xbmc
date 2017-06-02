@@ -17,6 +17,7 @@
 #include "NptStrings.h"
 #include "NptLogging.h"
 
+#ifndef TARGET_WIN10
 /*----------------------------------------------------------------------
 |   NPT_Win32HandletWrapper
 +---------------------------------------------------------------------*/
@@ -338,3 +339,5 @@ NPT_SerialPort::NPT_SerialPort(const char* name)
 {
     m_Delegate = new NPT_Win32SerialPort(name);
 }
+
+#endif //TARGET_WIN10

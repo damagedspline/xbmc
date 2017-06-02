@@ -22,7 +22,7 @@
 NPT_Result 
 NPT_Environment::Get(const char* name, NPT_String& value)
 {
-    char* env;
+    char* env = nullptr;
 
     /* default value */
     value.SetLength(0);
@@ -78,3 +78,4 @@ NPT_Environment::Set(const char* name, const char* value)
     }
     return result==0?NPT_SUCCESS:NPT_FAILURE;
 }
+

@@ -12,6 +12,7 @@
 +---------------------------------------------------------------------*/
 #include <windows.h>
 #include <stdio.h>
+#include <string>
 
 #include "NptConfig.h"
 #include "NptConsole.h"

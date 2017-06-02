@@ -10,6 +10,8 @@
 #ifndef _NPT_WIN32_MESSAGE_QUEUE_
 #define _NPT_WIN32_MESSAGE_QUEUE_
 
+#ifndef TARGET_WIN10
+
 /*----------------------------------------------------------------------
 |       includes
 +---------------------------------------------------------------------*/
@@ -44,6 +46,8 @@ private:
     TCHAR       m_ClassName[16];
     HINSTANCE   m_hInstance;
 };
+
+#endif // TARGET_WIN10
 
 #endif // _NPT_WIN32_MESSAGE_QUEUE_
 

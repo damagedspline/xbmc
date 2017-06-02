@@ -44,6 +44,14 @@
 #include <limits.h>
 #endif
 
+#ifdef TARGET_WIN10
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN 1
+#endif
+#include <windows.h>
+#endif
+
+
 /*----------------------------------------------------------------------
 |   constants
 +---------------------------------------------------------------------*/
@@ -921,4 +929,30 @@ NPT_ParseMimeParameters(const char*                      encoded,
     
     return NPT_SUCCESS;
 }
+
+
+#ifdef TARGET_WIN10
+std::wstring win32ConvertUtf8ToW(const std::string &text)
+{
+  if (text.empty())
+  {
+    return L"";
+  }
+
+  int bufSize = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text.c_str(), -1, NULL, 0);
+  if (bufSize == 0)
+    return L"";
+  wchar_t *converted = new wchar_t[bufSize];
+  if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text.c_str(), -1, converted, bufSize) != bufSize)
+  {
+    delete[] converted;
+    return L"";
+  }
+
+  std::wstring Wret(converted);
+  delete[] converted;
+
+  return Wret;
+}
+#endif
 

@@ -131,6 +131,7 @@ static NPT_WinsockSystem& WinsockInitializer = NPT_WinsockSystem::Initializer;
 #undef SetPort
 #endif
 
+#ifndef TARGET_WIN10
 #define EWOULDBLOCK  WSAEWOULDBLOCK
 #define EINPROGRESS  WSAEINPROGRESS
 #define ECONNREFUSED WSAECONNREFUSED
@@ -142,6 +143,8 @@ static NPT_WinsockSystem& WinsockInitializer = NPT_WinsockSystem::Initializer;
 #define ENETDOWN     WSAENETDOWN
 #define ENETUNREACH  WSAENETUNREACH
 #define ENOTCONN     WSAENOTCONN
+#endif
+
 #if !defined(EAGAIN)
 #define EAGAIN       WSAEWOULDBLOCK 
 #define EINTR        WSAEINTR
