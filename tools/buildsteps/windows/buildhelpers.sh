@@ -3,6 +3,7 @@
 MAKEFLAGS="$1"
 BGPROCESSFILE="$2"
 tools="$3"
+win10="$4"
 
 cpuCount=1
 if [[ $NUMBER_OF_PROCESSORS > 1 ]]; then

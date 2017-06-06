@@ -10,9 +10,7 @@ NOPROMPT=0
 MAKECLEAN=""
 MAKEFLAGS=""
 TOOLS="mingw"
-
-export _WIN32_WINNT=0x0600
-export NTDDI_VERSION=0x06000000
+WIN10="no"
 
 while true; do
   case $1 in
@@ -21,11 +19,17 @@ while true; do
     --build64=* ) build64="${1#*=}"; shift ;;
     --prompt=* ) PROMPTLEVEL="${1#*=}"; shift ;;
     --mode=* ) BUILDMODE="${1#*=}"; shift ;;
+    --win10=* ) WIN10="${1#*=}"; shift ;;
     -- ) shift; break ;;
     -* ) shift ;;
     * ) break ;;
   esac
 done
+
+if [ $WIN10 == "no" ]; then
+export _WIN32_WINNT=0x0600
+export NTDDI_VERSION=0x06000000
+fi
 
 throwerror() {
   $TOUCH $ERRORFILE
@@ -51,8 +55,8 @@ checkfiles() {
 #start the process backgrounded
 runBackgroundProcess() {
   $TOUCH $BGPROCESSFILE
-  echo "backgrounding: sh $1 $BGPROCESSFILE $TOOLS & (workdir: $(PWD))"
-  sh $1 $BGPROCESSFILE $targetBuild $TOOLS &
+  echo "backgrounding: sh $1 $BGPROCESSFILE $TOOLS $WIN10 & (workdir: $(PWD))"
+  sh $1 $BGPROCESSFILE $targetBuild $TOOLS $WIN10 &
   echo "waiting on bgprocess..."
   while [ -f $BGPROCESSFILE ]; do
     echo -n "."
@@ -72,6 +76,7 @@ echo " NOPROMPT  = $NOPROMPT"
 echo " MAKECLEAN = $MAKECLEAN"
 echo " WORKSPACE = $WORKSPACE"
 echo " TOOLCHAIN = $TOOLS"
+echo " WIN10     = $WIN10"
 echo
 echo "-------------------------------------------------------------------------------"
 
@@ -90,9 +95,12 @@ echo -ne "\033]0;building libdvd $BITS\007"
 echo "-------------------------------------------------"
 echo " building libdvd $BITS"
 echo "-------------------------------------------------"
+# temprary disable fow win10
+if [ $WIN10 == "no" ]; then
 runBackgroundProcess "./buildlibdvd.sh $MAKECLEAN"
 setfilepath /xbmc/system
 checkfiles libdvdcss-2.dll libdvdnav.dll
+fi
 echo "-------------------------------------------------"
 echo " building of libdvd $BITS done..."
 echo "-------------------------------------------------"

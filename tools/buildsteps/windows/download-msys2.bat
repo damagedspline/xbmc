@@ -26,7 +26,7 @@ PUSHD %~dp0\..\..\..
 SET WORKSPACE=%CD%
 POPD
 
-set msysver=20160205
+set msysver=20161025
 set msys2=msys64
 set build32=yes
 set build64=no
@@ -513,6 +513,7 @@ if %build32%==no GOTO loginProfile64
     GOTO loadlocals32
 
 :loginProfile64
+if %build64%==no GOTO loadlocals32
     %instdir%\%msys2%\usr\bin\grep -q -e 'profile.local' %instdir%\%msys2%\etc\profile || (
         echo -------------------------------------------------------------------------------
         echo.- write default profile [64 bit]

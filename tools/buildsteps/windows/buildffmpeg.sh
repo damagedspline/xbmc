@@ -34,11 +34,19 @@ do_getFFmpegConfig() {
     arch=x86_64
     FFMPEG_TARGET_OS=mingw64
     # perhaps it's not optimal
-    do_addOption "--cpu=core2"
-  else
+    if [[ $win10 = "no" ]]; then
+      do_addOption "--cpu=core2"
+    fi
+  elif [[ $BITS = "32bit" ]]; then
     arch=x86
     FFMPEG_TARGET_OS=mingw32
-    do_addOption "--cpu=i686"
+    if [[ $win10 = "no" ]]; then
+      do_addOption "--cpu=i686"
+    fi
+  elif [[ $BITS = "arm" ]]; then
+    arch=arm
+    FFMPEG_TARGET_OS=mingw32
+    do_addOption "--cpu=armv7"
   fi
   export arch
 
@@ -102,19 +110,32 @@ if [[ "$tools" = "msvc" ]]; then
   # set path to MS cl.exe and link.exe first
   if [[ $BITS = "64bit" ]]; then
     FFMPEG_TARGET_OS=win64
-    VCTOOLSPATH="$VS140COMNTOOLS../../VC/BIN/amd64"
-  else
+    VCTOOLSPATH="` cygpath "$VS140COMNTOOLS../../VC/BIN/amd64"`"
+  elif [[ $BITS = "32bit" ]]; then
     FFMPEG_TARGET_OS=win32
-    VCTOOLSPATH="$VS140COMNTOOLS../../VC/BIN/"
+    VCTOOLSPATH="` cygpath "$VS140COMNTOOLS../../VC/BIN"`"
+  elif [[ $BITS = "arm" ]]; then
+    FFMPEG_TARGET_OS=win32
+    VCTOOLSPATH="` cygpath "$VS140COMNTOOLS../../VC/BIN"`"
   fi
 
-  export PATH="$VCTOOLSPATH":$PATH
+  #export PATH="$VCTOOLSPATH":$PATH -- no need with modern ffmpeg
   export CFLAGS=""
   export CXXFLAGS=""
   export LDFLAGS=""
 
-  extra_cflags="-MDd -I$LOCALDESTDIR/include"
-  extra_ldflags="-LIBPATH:\"$LOCALDESTDIR/lib\" -LIBPATH:\"$MINGW_PREFIX/lib\" /NODEFAULTLIB:libcmt"
+  extra_cflags="-I$LOCALDESTDIR/include"
+  extra_ldflags="-LIBPATH:\"$LOCALDESTDIR/lib\" -LIBPATH:\"$MINGW_PREFIX/lib\""
+  if [[ "$win10" = "yes" ]]; then
+    do_addOption "--enable-cross-compile"
+    do_addOption "--disable-debug"
+    do_removeOption "--enable-debug"
+    extra_cflags=$extra_cflags" -MD -DWINAPI_FAMILY=WINAPI_FAMILY_APP -D_WIN32_WINNT=0x0A00"
+    extra_ldflags=$extra_ldflags" -APPCONTAINER WindowsApp.lib"
+  else
+    extra_cflags=$extra_cflags" -MDd"
+    extra_ldflags=$extra_ldflags" -NODEFAULTLIB:libcmt"
+  fi
 fi
 
 cd $LOCALBUILDDIR
