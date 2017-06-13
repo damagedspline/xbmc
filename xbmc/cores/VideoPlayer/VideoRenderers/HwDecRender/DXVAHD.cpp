@@ -31,7 +31,9 @@
 #include "cores/VideoPlayer/VideoRenderers/RenderFlags.h"
 #include "settings/MediaSettings.h"
 #include "utils/Log.h"
+#if defined(HAVE_SSE2)
 #include "utils/win32/memcpy_sse2.h"
+#endif
 #include "platform/win32/WIN32Util.h"
 #include "windowing/WindowingFactory.h"
 
@@ -445,6 +447,7 @@ CRenderPicture *CProcessorHD::Convert(VideoPicture &picture)
   uint8_t*  dst[] = { pData, pData + m_texDesc.Height * rectangle.RowPitch };
   int dstStride[] = { rectangle.RowPitch, rectangle.RowPitch };
 
+#if defined(HAVE_SSE2) // TODO
   if (picture.format == RENDER_FMT_YUV420P)
   {
     convert_yuv420_nv12(picture.data, picture.iLineSize, picture.iHeight, picture.iWidth, dst, dstStride);
@@ -455,6 +458,7 @@ CRenderPicture *CProcessorHD::Convert(VideoPicture &picture)
     convert_yuv420_p01x(picture.data, picture.iLineSize, picture.iHeight, picture.iWidth, dst, dstStride
                       , picture.format == RENDER_FMT_YUV420P10 ? 10 : 16);
   }
+#endif
   pContext->Unmap(pResource, 0);
   SAFE_RELEASE(pResource);
 
