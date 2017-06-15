@@ -68,9 +68,9 @@ bool CWinSystemWin10DX::UseWindowedDX(bool fullScreen)
   return (CServiceBroker::GetSettings().GetBool(CSettings::SETTING_VIDEOSCREEN_FAKEFULLSCREEN) || !fullScreen);
 }
 
-bool CWinSystemWin10DX::CreateNewWindow(std::string name, bool fullScreen, RESOLUTION_INFO& res, PHANDLE_EVENT_FUNC userFunction)
+bool CWinSystemWin10DX::CreateNewWindow(std::string name, bool fullScreen, RESOLUTION_INFO& res)
 {
-  if(!CWinSystemWin10::CreateNewWindow(name, fullScreen, res, userFunction))
+  if(!CWinSystemWin10::CreateNewWindow(name, fullScreen, res))
     return false;
 
 #if 0

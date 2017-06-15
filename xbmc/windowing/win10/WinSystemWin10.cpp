@@ -76,7 +76,7 @@ bool CWinSystemWin10::DestroyWindowSystem()
   return true;
 }
 
-bool CWinSystemWin10::CreateNewWindow(const std::string& name, bool fullScreen, RESOLUTION_INFO& res, PHANDLE_EVENT_FUNC userFunction)
+bool CWinSystemWin10::CreateNewWindow(const std::string& name, bool fullScreen, RESOLUTION_INFO& res)
 {
 
   m_nWidth  = res.iWidth;
