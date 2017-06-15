@@ -336,7 +336,6 @@ void App::OnPointerPressed(CoreWindow ^ sender, PointerEventArgs ^ args)
   else*/
   {
     newEvent.type = XBMC_MOUSEBUTTONDOWN;
-    newEvent.button.state = XBMC_PRESSED;
     newEvent.button.x = DX::ConvertDipsToPixels(point->Position.X, dpi);
     newEvent.button.y = DX::ConvertDipsToPixels(point->Position.Y, dpi);
     if (point->PointerDevice->PointerDeviceType == PointerDeviceType::Mouse)
@@ -383,7 +382,6 @@ void App::OnPointerReleased(CoreWindow^ sender, PointerEventArgs^ args)
 
   XBMC_Event newEvent;
   memset(&newEvent, 0, sizeof(newEvent));
-  newEvent.button.state = XBMC_RELEASED;
   newEvent.type = XBMC_MOUSEBUTTONUP;
   newEvent.button.x = DX::ConvertDipsToPixels(point->Position.X, dpi);
   newEvent.button.y = DX::ConvertDipsToPixels(point->Position.Y, dpi);
@@ -397,14 +395,12 @@ void App::OnPointerWheelChanged(CoreWindow^ sender, PointerEventArgs^ args)
 {
   XBMC_Event newEvent;
   memset(&newEvent, 0, sizeof(newEvent));
-  newEvent.button.state = XBMC_PRESSED;
   newEvent.type = XBMC_MOUSEBUTTONDOWN;
   newEvent.button.x = args->CurrentPoint->Position.X;
   newEvent.button.y = args->CurrentPoint->Position.Y;
   newEvent.button.button = args->CurrentPoint->Properties->MouseWheelDelta > 0 ? XBMC_BUTTON_WHEELUP : XBMC_BUTTON_WHEELDOWN;
   CWinEvents::MessagePush(&newEvent);
   newEvent.type = XBMC_MOUSEBUTTONUP;
-  newEvent.button.state = XBMC_RELEASED;
   CWinEvents::MessagePush(&newEvent);
 }
 
