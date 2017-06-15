@@ -66,10 +66,11 @@ function(add_precompiled_header target pch_header pch_source)
 endfunction()
 
 macro(winstore_set_assets target)
-  file(GLOB ASSET_FILES "${CMAKE_SOURCE_DIR}/tools/windows/packaging/uwp/media/*.*")
+  file(GLOB ASSET_FILES "${CMAKE_SOURCE_DIR}/tools/windows/packaging/uwp/media/*.png")
   set_property(SOURCE ${ASSET_FILES} PROPERTY VS_DEPLOYMENT_CONTENT 1)
   set_property(SOURCE ${ASSET_FILES} PROPERTY VS_DEPLOYMENT_LOCATION "media")
   source_group("media" FILES ${ASSET_FILES})
+  set(RESOURCES ${RESOURCES} ${ASSET_FILES})
 endmacro()
 
 macro(winstore_generate_manifest target)
