@@ -24,7 +24,11 @@
 #include "guilib/GUIWindowManager.h"
 #include "utils/log.h"
 #ifdef HAS_DX
-#include "windowing/windows/WinSystemWin32DX.h"
+# ifndef TARGET_WIN10
+#  include "windowing/windows/WinSystemWin32DX.h"
+# else
+#  include "windowing/win10/WinSystemWin10DX.h"
+# endif
 #endif
 
 namespace ADDON
