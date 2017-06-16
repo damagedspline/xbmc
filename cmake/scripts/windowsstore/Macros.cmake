@@ -70,7 +70,8 @@ macro(winstore_set_assets target)
   set_property(SOURCE ${ASSET_FILES} PROPERTY VS_DEPLOYMENT_CONTENT 1)
   set_property(SOURCE ${ASSET_FILES} PROPERTY VS_DEPLOYMENT_LOCATION "media")
   source_group("media" FILES ${ASSET_FILES})
-  set(RESOURCES ${RESOURCES} ${ASSET_FILES})
+  set(RESOURCES ${RESOURCES} ${ASSET_FILES} 
+                            "${CMAKE_SOURCE_DIR}/tools/windows/packaging/uwp/kodi_temp_key.pfx")
 endmacro()
 
 macro(winstore_generate_manifest target)
