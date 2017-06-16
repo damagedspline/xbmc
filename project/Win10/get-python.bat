@@ -15,7 +15,8 @@ if "%1" == "arm" (
   set platform=ARM
   set arch=arm
 )
-set dependsdir=BuildDependencies\%arch%-uwp
+set triplet=%arch%-uwp
+set dependsdir=BuildDependencies\%triplet%
 
 if exist %dependsdir%\system\python (
   rd /S /Q %dependsdir%\system\python
@@ -48,10 +49,12 @@ if not exist %dependsdir%\%subdir%\include\python do mkdir %dependsdir%\include\
 
 rem goto:install
 
+set buildpath=%cd%\cpython\%triplet%
+
 pushd cpython\PCBuild
   echo Building and installing cpython
   call "%VS140COMNTOOLS%vsvars32.bat"
-  call msbuild pcbuild.sln /p:Configuration="Release" /p:Platform="%platform%" /m  
+  call msbuild pcbuild.sln /p:Configuration="Release" /p:Platform="%platform%" /p:BuildPath="%buildpath%" /m
 popd
 
 
@@ -64,7 +67,7 @@ pushd cpython
 popd
 
 echo Copying python binaries...
-pushd cpython\pcbuild
+pushd cpython\%triplet%
   xcopy python27.lib ..\..\%dependsdir%\lib\ /iycq  
   xcopy python27.dll ..\..\%dependsdir%\bin\ /iycq  
   
