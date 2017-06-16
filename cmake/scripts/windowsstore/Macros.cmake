@@ -105,6 +105,10 @@ macro(add_deployment_content_group group path link match exclude)
 endmacro() 
 
 macro(winstore_append_props target)
+  set(PACKAGE_ADDONS_EXCLUDES "$(RootPath)/addons/skin.*/**" 
+                              "\;$(RootPath)/addons/script.module.pil/**"
+                              "\;$(RootPath)/addons/script.module.pycryptodome/**")
+
   add_deployment_content_group(system $(RootPath)/system system *.xml "")
   add_deployment_content_group(keyboardlayouts $(RootPath)/system/keyboardlayouts system/keyboardlayouts **/* "")
   add_deployment_content_group(keymaps $(RootPath)/system/keymaps system/keymaps **/* "")
@@ -113,7 +117,7 @@ macro(winstore_append_props target)
   add_deployment_content_group(shaders $(RootPath)/system/shaders system/shaders **/* "")
   add_deployment_content_group(media $(RootPath)/media/Fonts media/Fonts **/* "")
   add_deployment_content_group(userdata $(RootPath)/userdata userdata **/* "")
-  add_deployment_content_group(addons $(RootPath)/addons addons **/* $(RootPath)/addons/skin.*/**)
+  add_deployment_content_group(addons $(RootPath)/addons addons **/* "${PACKAGE_ADDONS_EXCLUDES}")
   add_deployment_content_group(addons2 ${CMAKE_CURRENT_BINARY_DIR}/addons addons **/* "")
   add_deployment_content_group(python $(BuildDependenciesPath)/system/python system/python **/* "")
 
