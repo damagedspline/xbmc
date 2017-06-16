@@ -18,7 +18,7 @@ if "%1" == "arm" (
 set dependsdir=BuildDependencies\%arch%-uwp
 
 if exist %dependsdir%\system\python (
-  rd /S /Q system\python
+  rd /S /Q %dependsdir%\system\python
 )
 
 if exist %dependsdir%\include\python (
