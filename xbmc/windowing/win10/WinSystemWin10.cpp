@@ -630,6 +630,7 @@ bool CWinSystemWin10::UpdateResolutionsInternal()
           flipResolution = true;
           break;
         }
+        break;
       case DisplayOrientations::Portrait:
         switch (displayInfo->CurrentOrientation)
         {
@@ -638,6 +639,7 @@ bool CWinSystemWin10::UpdateResolutionsInternal()
           flipResolution = true;
           break;
         }
+        break;
     }
     md.ScreenWidth = flipResolution ? displayInfo->ScreenHeightInRawPixels : displayInfo->ScreenWidthInRawPixels;
     md.ScreenHeight = flipResolution ? displayInfo->ScreenWidthInRawPixels : displayInfo->ScreenHeightInRawPixels;
