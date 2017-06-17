@@ -240,7 +240,11 @@ void CAddonMgr::FillCpluffMetadata(const cp_plugin_info_t* plugin, CAddonBuilder
 static bool LoadManifest(std::set<std::string>& system, std::set<std::string>& optional)
 {
   CXBMCTinyXML doc;
+#ifdef TARGET_WIN10
+  if (!doc.LoadFile("special://xbmc/system/addon-manifest-uwp.xml"))
+#else
   if (!doc.LoadFile("special://xbmc/system/addon-manifest.xml"))
+#endif
   {
     CLog::Log(LOGERROR, "ADDONS: manifest missing");
     return false;
