@@ -396,9 +396,8 @@ void App::OnPointerMoved(CoreWindow^ sender, PointerEventArgs^ args)
   XBMC_Event newEvent;
   memset(&newEvent, 0, sizeof(newEvent));
   newEvent.type = XBMC_MOUSEMOTION;
-  newEvent.button.x = DX::ConvertDipsToPixels(point->Position.X, dpi);
-  newEvent.button.y = DX::ConvertDipsToPixels(point->Position.Y, dpi);
-  newEvent.button.button = 0;
+  newEvent.motion.x = DX::ConvertDipsToPixels(point->Position.X, dpi);
+  newEvent.motion.y = DX::ConvertDipsToPixels(point->Position.Y, dpi);
   CWinEvents::MessagePush(&newEvent);
 }
 
