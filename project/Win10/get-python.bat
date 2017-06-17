@@ -113,6 +113,7 @@ pushd %dependsdir%\system\python\Lib
   rd /S /Q plat-sunos5
   rd /S /Q plat-unixware7
   rd /S /Q test
+  del /S /F /Q *.exe
 popd
 
 
