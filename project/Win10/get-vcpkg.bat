@@ -1,6 +1,6 @@
 @echo off
 set repo=https://github.com/afedchin/vcpkg
-set version=v0.0.2
+set version=v0.0.3
 set zip=%cd%\..\Win32BuildSetup\tools\7z\7za.exe
 set wget=%cd%\..\BuildDependencies\bin\wget.exe
 set download=yes
