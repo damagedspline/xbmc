@@ -529,6 +529,8 @@ double CAESinkWASAPIWin10::GetCacheTotal()
   return m_sinkLatency;
 }
 
+#define CLOCK_FREQ INT64_C(1000000)
+
 unsigned int CAESinkWASAPIWin10::AddPackets(uint8_t **data, unsigned int frames, unsigned int offset)
 {
   if (!m_initialized)
@@ -544,17 +546,7 @@ unsigned int CAESinkWASAPIWin10::AddPackets(uint8_t **data, unsigned int frames,
   LARGE_INTEGER timerFreq;
 #endif
 
-  unsigned int NumFramesRequested = m_format.m_frames;
-  unsigned int FramesToCopy = std::min(m_format.m_frames - m_bufferPtr, frames);
-  uint8_t *buffer = data[0]+offset*m_format.m_frameSize;
-  if (m_bufferPtr != 0 || frames != m_format.m_frames)
-  {
-    memcpy(m_pBuffer+m_bufferPtr*m_format.m_frameSize, buffer, FramesToCopy*m_format.m_frameSize);
-    m_bufferPtr += FramesToCopy;
-    if (m_bufferPtr != m_format.m_frames)
-      return frames;
-  }
-
+ 
   if (!m_running) //first time called, pre-fill buffer then start audio client
   {
     hr = m_pAudioClient->Reset();
@@ -563,6 +555,15 @@ unsigned int CAESinkWASAPIWin10::AddPackets(uint8_t **data, unsigned int frames,
       CLog::Log(LOGERROR, __FUNCTION__ " AudioClient reset failed due to %s", WASAPIErrToStr(hr));
       return 0;
     }
+    UINT32 padding;
+    hr = m_pAudioClient->GetCurrentPadding(&padding);
+    if (FAILED(hr))
+    {
+      CLog::LogFunction(LOGERROR, __FUNCTION__, " AudioClient get padding failed due to %s", WASAPIErrToStr(hr));
+      return INT_MAX;
+    }
+
+    unsigned int NumFramesRequested = m_format.m_frames - padding;
     hr = m_pRenderClient->GetBuffer(NumFramesRequested, &buf);
     if (FAILED(hr))
     {
@@ -624,32 +625,50 @@ unsigned int CAESinkWASAPIWin10::AddPackets(uint8_t **data, unsigned int frames,
   }
 #endif
 
-  hr = m_pRenderClient->GetBuffer(NumFramesRequested, &buf);
-  if (FAILED(hr))
+  uint8_t *buffer = data[0] + offset*m_format.m_frameSize;
+  unsigned framesLeft = frames;
+
+  for (;;)
   {
-    #ifdef _DEBUG
+    UINT32 padding;
+    hr = m_pAudioClient->GetCurrentPadding(&padding);
+    if (FAILED(hr))
+    {
+      CLog::LogFunction(LOGERROR, __FUNCTION__, " AudioClient get padding failed due to %s", WASAPIErrToStr(hr));
+      return INT_MAX;
+    }
+
+    unsigned int NumFramesRequested = m_format.m_frames - padding;
+    if (NumFramesRequested > framesLeft)
+      NumFramesRequested = framesLeft;
+
+    hr = m_pRenderClient->GetBuffer(NumFramesRequested, &buf);
+    if (FAILED(hr))
+    {
+#ifdef _DEBUG
       CLog::Log(LOGERROR, __FUNCTION__": GetBuffer failed due to %s", WASAPIErrToStr(hr));
-    #endif
-    return INT_MAX;
-  }
-  memcpy(buf, m_bufferPtr == 0 ? buffer : m_pBuffer, NumFramesRequested * m_format.m_frameSize); //fill buffer
-  m_bufferPtr = 0;
-  hr = m_pRenderClient->ReleaseBuffer(NumFramesRequested, flags); //pass back to audio driver
-  if (FAILED(hr))
-  {
-    #ifdef _DEBUG
-    CLog::Log(LOGDEBUG, __FUNCTION__": ReleaseBuffer failed due to %s.", WASAPIErrToStr(hr));
-    #endif
-    return INT_MAX;
-  }
-  m_sinkFrames += NumFramesRequested;
+#endif
+      return INT_MAX;
+    }
+    memcpy(buf, buffer, NumFramesRequested * m_format.m_frameSize);
+    hr = m_pRenderClient->ReleaseBuffer(NumFramesRequested, flags);
+    if (FAILED(hr))
+    {
+#ifdef _DEBUG
+      CLog::Log(LOGDEBUG, __FUNCTION__": ReleaseBuffer failed due to %s.", WASAPIErrToStr(hr));
+#endif
+      return INT_MAX;
+    }
+    m_sinkFrames += NumFramesRequested;
 
-  if (FramesToCopy != frames)
-  {
-    m_bufferPtr = frames-FramesToCopy;
-    memcpy(m_pBuffer, buffer+FramesToCopy*m_format.m_frameSize, m_bufferPtr*m_format.m_frameSize);
-  }
+    buffer += NumFramesRequested*m_format.m_frameSize;
+    framesLeft -= NumFramesRequested;
+    if (framesLeft == 0)
+      break;
 
+    // out of buffer space, relinquish the remainder of time slice to any other thread
+    Sleep(0);
+  }
   return frames;
 }
 
@@ -737,6 +756,10 @@ void CAESinkWASAPIWin10::EnumerateDevicesEx(AEDeviceInfoList &deviceInfoList, bo
 
       if (pClient)
       {
+        AUDCLNT_SHAREMODE shared_mode = AUDCLNT_SHAREMODE_EXCLUSIVE;
+        if (aeDeviceType != AE_DEVTYPE_HDMI && aeDeviceType == AE_DEVTYPE_IEC958)
+          shared_mode = AUDCLNT_SHAREMODE_SHARED;
+
         /* Test format DTS-HD */
         wfxex.Format.cbSize = sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX);
         wfxex.Format.nSamplesPerSec = 192000;
@@ -748,7 +771,7 @@ void CAESinkWASAPIWin10::EnumerateDevicesEx(AEDeviceInfoList &deviceInfoList, bo
         wfxex.Format.nChannels = 8;
         wfxex.Format.nBlockAlign = wfxex.Format.nChannels * (wfxex.Format.wBitsPerSample >> 3);
         wfxex.Format.nAvgBytesPerSec = wfxex.Format.nSamplesPerSec * wfxex.Format.nBlockAlign;
-        hr = pClient->IsFormatSupported(AUDCLNT_SHAREMODE_EXCLUSIVE, &wfxex.Format, nullptr);
+        hr = pClient->IsFormatSupported(shared_mode, &wfxex.Format, nullptr);
         if (SUCCEEDED(hr) || aeDeviceType == AE_DEVTYPE_HDMI)
         {
           if (FAILED(hr))
@@ -760,7 +783,7 @@ void CAESinkWASAPIWin10::EnumerateDevicesEx(AEDeviceInfoList &deviceInfoList, bo
 
         /* Test format Dolby TrueHD */
         wfxex.SubFormat = KSDATAFORMAT_SUBTYPE_IEC61937_DOLBY_MLP;
-        hr = pClient->IsFormatSupported(AUDCLNT_SHAREMODE_EXCLUSIVE, &wfxex.Format, nullptr);
+        hr = pClient->IsFormatSupported(shared_mode, &wfxex.Format, nullptr);
         if (SUCCEEDED(hr) || aeDeviceType == AE_DEVTYPE_HDMI)
         {
           if (FAILED(hr))
@@ -775,7 +798,7 @@ void CAESinkWASAPIWin10::EnumerateDevicesEx(AEDeviceInfoList &deviceInfoList, bo
         wfxex.Format.nChannels = 2;
         wfxex.Format.nBlockAlign = wfxex.Format.nChannels * (wfxex.Format.wBitsPerSample >> 3);
         wfxex.Format.nAvgBytesPerSec = wfxex.Format.nSamplesPerSec * wfxex.Format.nBlockAlign;
-        hr = pClient->IsFormatSupported(AUDCLNT_SHAREMODE_EXCLUSIVE, &wfxex.Format, nullptr);
+        hr = pClient->IsFormatSupported(shared_mode, &wfxex.Format, nullptr);
         if (SUCCEEDED(hr) || aeDeviceType == AE_DEVTYPE_HDMI)
         {
           if (FAILED(hr))
@@ -791,7 +814,7 @@ void CAESinkWASAPIWin10::EnumerateDevicesEx(AEDeviceInfoList &deviceInfoList, bo
         wfxex.SubFormat = KSDATAFORMAT_SUBTYPE_IEC61937_DTS;
         wfxex.Format.nBlockAlign = wfxex.Format.nChannels * (wfxex.Format.wBitsPerSample >> 3);
         wfxex.Format.nAvgBytesPerSec = wfxex.Format.nSamplesPerSec * wfxex.Format.nBlockAlign;
-        hr = pClient->IsFormatSupported(AUDCLNT_SHAREMODE_EXCLUSIVE, &wfxex.Format, nullptr);
+        hr = pClient->IsFormatSupported(shared_mode, &wfxex.Format, nullptr);
         if (SUCCEEDED(hr) || aeDeviceType == AE_DEVTYPE_HDMI)
         {
           if (FAILED(hr))
@@ -805,7 +828,7 @@ void CAESinkWASAPIWin10::EnumerateDevicesEx(AEDeviceInfoList &deviceInfoList, bo
 
         /* Test format Dolby AC3 */
         wfxex.SubFormat = KSDATAFORMAT_SUBTYPE_IEC61937_DOLBY_DIGITAL;
-        hr = pClient->IsFormatSupported(AUDCLNT_SHAREMODE_EXCLUSIVE, &wfxex.Format, nullptr);
+        hr = pClient->IsFormatSupported(shared_mode, &wfxex.Format, nullptr);
         if (SUCCEEDED(hr) || aeDeviceType == AE_DEVTYPE_HDMI)
         {
           if (FAILED(hr))
@@ -841,7 +864,7 @@ void CAESinkWASAPIWin10::EnumerateDevicesEx(AEDeviceInfoList &deviceInfoList, bo
             wfxex.Samples.wValidBitsPerSample = wfxex.Format.wBitsPerSample;
           }
 
-          hr = pClient->IsFormatSupported(AUDCLNT_SHAREMODE_EXCLUSIVE, &wfxex.Format, nullptr);
+          hr = pClient->IsFormatSupported(shared_mode, &wfxex.Format, nullptr);
           if (SUCCEEDED(hr))
             deviceInfo.m_dataFormats.push_back((AEDataFormat)p);
         }
@@ -861,7 +884,7 @@ void CAESinkWASAPIWin10::EnumerateDevicesEx(AEDeviceInfoList &deviceInfoList, bo
         {
           wfxex.Format.nSamplesPerSec = WASAPISampleRates[j];
           wfxex.Format.nAvgBytesPerSec = wfxex.Format.nSamplesPerSec * wfxex.Format.nBlockAlign;
-          hr = pClient->IsFormatSupported(AUDCLNT_SHAREMODE_EXCLUSIVE, &wfxex.Format, nullptr);
+          hr = pClient->IsFormatSupported(shared_mode, &wfxex.Format, nullptr);
           if (SUCCEEDED(hr))
             deviceInfo.m_sampleRates.push_back(WASAPISampleRates[j]);
           else if (wfxex.Format.nSamplesPerSec == 192000 && add192)
@@ -1013,6 +1036,7 @@ bool CAESinkWASAPIWin10::InitializeExclusive(AEAudioFormat &format)
 {
   WAVEFORMATEXTENSIBLE_IEC61937 wfxex_iec61937;
   WAVEFORMATEXTENSIBLE &wfxex = wfxex_iec61937.FormatExt;
+  WAVEFORMATEX *pwf = &wfxex.Format, *wf_closest;
 
   if (format.m_dataFormat <= AE_FMT_FLOAT)
     BuildWaveFormatExtensible(format, wfxex);
@@ -1043,8 +1067,21 @@ bool CAESinkWASAPIWin10::InitializeExclusive(AEAudioFormat &format)
     wfxex.dwChannelMask               = SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT;
     wfxex.SubFormat                   = KSDATAFORMAT_SUBTYPE_PCM;
   }
+  AUDCLNT_SHAREMODE shared_mode = AUDCLNT_SHAREMODE_EXCLUSIVE;
 
-  HRESULT hr = m_pAudioClient->IsFormatSupported(AUDCLNT_SHAREMODE_EXCLUSIVE, &wfxex.Format, nullptr);
+  HRESULT hr = m_pAudioClient->IsFormatSupported(shared_mode, pwf, &wf_closest);
+  if (hr == AUDCLNT_E_EXCLUSIVE_MODE_NOT_ALLOWED)
+  {
+    shared_mode = AUDCLNT_SHAREMODE_SHARED;
+    hr = m_pAudioClient->IsFormatSupported(shared_mode, pwf, &wf_closest);
+  }
+
+  if (hr == S_FALSE)
+  {
+    pwf = wf_closest;
+  }
+  else
+    assert(wf_closest == nullptr);
 
   if (SUCCEEDED(hr))
   {
@@ -1108,7 +1145,7 @@ bool CAESinkWASAPIWin10::InitializeExclusive(AEAudioFormat &format)
           wfxex.Samples.wValidBitsPerSample);
 #endif
 
-        hr = m_pAudioClient->IsFormatSupported(AUDCLNT_SHAREMODE_EXCLUSIVE, &wfxex.Format, nullptr);
+        hr = m_pAudioClient->IsFormatSupported(shared_mode, &wfxex.Format, &wf_closest);
 
         if (SUCCEEDED(hr))
         {
@@ -1145,15 +1182,15 @@ initialize:
 
   /* When the stream is raw, the values in the format structure are set to the link    */
   /* parameters, so store the encoded stream values here for the IsCompatible function */
-  m_encodedChannels   = wfxex.Format.nChannels;
+  m_encodedChannels   = pwf->nChannels;
   m_encodedSampleRate = (format.m_dataFormat == AE_FMT_RAW) ? format.m_streamInfo.m_sampleRate : format.m_sampleRate;
-  wfxex_iec61937.dwEncodedChannelCount = wfxex.Format.nChannels;
+  wfxex_iec61937.dwEncodedChannelCount = pwf->nChannels;
   wfxex_iec61937.dwEncodedSamplesPerSec = m_encodedSampleRate;
 
   /* Set up returned sink format for engine */
   if (format.m_dataFormat != AE_FMT_RAW)
   {
-    if (wfxex.Format.wBitsPerSample == 32)
+    if (pwf->wBitsPerSample == 32)
     {
       if (wfxex.SubFormat == KSDATAFORMAT_SUBTYPE_IEEE_FLOAT)
         format.m_dataFormat = AE_FMT_FLOAT;
@@ -1162,14 +1199,14 @@ initialize:
       else
         format.m_dataFormat = AE_FMT_S24NE4MSB;
     }
-    else if (wfxex.Format.wBitsPerSample == 24)
+    else if (pwf->wBitsPerSample == 24)
       format.m_dataFormat = AE_FMT_S24NE3;
     else
       format.m_dataFormat = AE_FMT_S16NE;
   }
 
-  format.m_sampleRate    = wfxex.Format.nSamplesPerSec; //PCM: Sample rate.  RAW: Link speed
-  format.m_frameSize     = (wfxex.Format.wBitsPerSample >> 3) * wfxex.Format.nChannels;
+  format.m_sampleRate    = pwf->nSamplesPerSec; //PCM: Sample rate.  RAW: Link speed
+  format.m_frameSize     = (pwf->wBitsPerSample >> 3) * pwf->nChannels;
 
   REFERENCE_TIME audioSinkBufferDurationMsec, hnsLatency;
 
@@ -1184,8 +1221,8 @@ initialize:
   if (format.m_dataFormat == AE_FMT_RAW)
     format.m_dataFormat = AE_FMT_S16NE;
 
-  hr = m_pAudioClient->Initialize(AUDCLNT_SHAREMODE_EXCLUSIVE, AUDCLNT_STREAMFLAGS_EVENTCALLBACK | AUDCLNT_STREAMFLAGS_NOPERSIST,
-                                    audioSinkBufferDurationMsec, audioSinkBufferDurationMsec, &wfxex.Format, nullptr);
+  hr = m_pAudioClient->Initialize(shared_mode, AUDCLNT_STREAMFLAGS_EVENTCALLBACK | AUDCLNT_STREAMFLAGS_NOPERSIST,
+                                    audioSinkBufferDurationMsec, audioSinkBufferDurationMsec, pwf, nullptr);
 
   if (hr == AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED)
   {
@@ -1198,7 +1235,7 @@ initialize:
       return false;
     }
 
-    audioSinkBufferDurationMsec = (REFERENCE_TIME) ((10000.0 * 1000 / wfxex.Format.nSamplesPerSec * m_uiBufferLen) + 0.5);
+    audioSinkBufferDurationMsec = (REFERENCE_TIME) ((10000.0 * 1000 / pwf->nSamplesPerSec * m_uiBufferLen) + 0.5);
 
     /* Release the previous allocations */
     SAFE_RELEASE(m_pAudioClient);
@@ -1211,28 +1248,30 @@ initialize:
     }).wait();
 
     /* Open the stream and associate it with an audio session */
-    hr = m_pAudioClient->Initialize(AUDCLNT_SHAREMODE_EXCLUSIVE, AUDCLNT_STREAMFLAGS_EVENTCALLBACK | AUDCLNT_STREAMFLAGS_NOPERSIST,
-                                      audioSinkBufferDurationMsec, audioSinkBufferDurationMsec, &wfxex.Format, nullptr);
+    hr = m_pAudioClient->Initialize(shared_mode, AUDCLNT_STREAMFLAGS_EVENTCALLBACK | AUDCLNT_STREAMFLAGS_NOPERSIST,
+                                      audioSinkBufferDurationMsec, audioSinkBufferDurationMsec, pwf, nullptr);
   }
   if (FAILED(hr))
   {
     CLog::Log(LOGERROR, __FUNCTION__": Failed to initialize WASAPI in exclusive mode %d - (%s).", HRESULT(hr), WASAPIErrToStr(hr));
-    CLog::Log(LOGDEBUG, "  Sample Rate     : %d", wfxex.Format.nSamplesPerSec);
+    CLog::Log(LOGDEBUG, "  Sample Rate     : %d", pwf->nSamplesPerSec);
     CLog::Log(LOGDEBUG, "  Sample Format   : %s", CAEUtil::DataFormatToStr(format.m_dataFormat));
-    CLog::Log(LOGDEBUG, "  Bits Per Sample : %d", wfxex.Format.wBitsPerSample);
+    CLog::Log(LOGDEBUG, "  Bits Per Sample : %d", pwf->wBitsPerSample);
     CLog::Log(LOGDEBUG, "  Valid Bits/Samp : %d", wfxex.Samples.wValidBitsPerSample);
-    CLog::Log(LOGDEBUG, "  Channel Count   : %d", wfxex.Format.nChannels);
-    CLog::Log(LOGDEBUG, "  Block Align     : %d", wfxex.Format.nBlockAlign);
-    CLog::Log(LOGDEBUG, "  Avg. Bytes Sec  : %d", wfxex.Format.nAvgBytesPerSec);
+    CLog::Log(LOGDEBUG, "  Channel Count   : %d", pwf->nChannels);
+    CLog::Log(LOGDEBUG, "  Block Align     : %d", pwf->nBlockAlign);
+    CLog::Log(LOGDEBUG, "  Avg. Bytes Sec  : %d", pwf->nAvgBytesPerSec);
     CLog::Log(LOGDEBUG, "  Samples/Block   : %d", wfxex.Samples.wSamplesPerBlock);
-    CLog::Log(LOGDEBUG, "  Format cBSize   : %d", wfxex.Format.cbSize);
+    CLog::Log(LOGDEBUG, "  Format cBSize   : %d", pwf->cbSize);
     CLog::Log(LOGDEBUG, "  Channel Layout  : %s", ((std::string)format.m_channelLayout).c_str());
     CLog::Log(LOGDEBUG, "  Enc. Channels   : %d", wfxex_iec61937.dwEncodedChannelCount);
     CLog::Log(LOGDEBUG, "  Enc. Samples/Sec: %d", wfxex_iec61937.dwEncodedSamplesPerSec);
     CLog::Log(LOGDEBUG, "  Channel Mask    : %d", wfxex.dwChannelMask);
     CLog::Log(LOGDEBUG, "  Periodicty      : %I64d", audioSinkBufferDurationMsec);
-    return false;
   }
+  CoTaskMemFree(pwf);
+  if (FAILED(hr))
+    return false;
 
   /* Latency of WASAPI buffers in event-driven mode is equal to the returned value  */
   /* of GetStreamLatency converted from 100ns intervals to seconds then multiplied  */
@@ -1250,8 +1289,8 @@ initialize:
 
   CLog::Log(LOGINFO, __FUNCTION__": WASAPI Exclusive Mode Sink Initialized using: %s, %d, %d",
                                      CAEUtil::DataFormatToStr(format.m_dataFormat),
-                                     wfxex.Format.nSamplesPerSec,
-                                     wfxex.Format.nChannels);
+                                     pwf->nSamplesPerSec,
+                                     pwf->nChannels);
 
   return true;
 }
