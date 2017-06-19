@@ -331,6 +331,10 @@ bool CApplication::OnEvent(XBMC_Event& newEvent)
           CServiceBroker::GetSettings().SetInt(CSettings::SETTING_WINDOW_HEIGHT, newEvent.resize.h);
           CServiceBroker::GetSettings().Save();
         }
+        else
+        {
+          g_graphicsContext.SetVideoResolution(RES_DESKTOP, true);
+        }
       }
       break;
     case XBMC_VIDEOMOVE:
