@@ -37,6 +37,9 @@
 #include "windowing/WindowingFactory.h"
 #include "platform/xbmc.h"
 
+#include "input/touch/generic/GenericTouchActionHandler.h"
+#include "input/touch/generic/GenericTouchInputHandler.h"
+
 using namespace KODI::PLATFORM::WINDOWS10;
 using namespace concurrency;
 using namespace Windows::ApplicationModel;
@@ -98,47 +101,32 @@ void App::Initialize(CoreApplicationView^ applicationView)
 // Called when the CoreWindow object is created (or re-created).
 void App::SetWindow(CoreWindow^ window)
 {
-  //CoreApplication::GetCurrentView()->TitleBar->ExtendViewIntoTitleBar = true;
   window->SetPointerCapture();
+  // window
   window->SizeChanged += ref new TypedEventHandler<CoreWindow^, WindowSizeChangedEventArgs^>(this, &App::OnWindowSizeChanged);
   window->VisibilityChanged += ref new TypedEventHandler<CoreWindow^, VisibilityChangedEventArgs^>(this, &App::OnVisibilityChanged);
   window->Activated += ref new TypedEventHandler<CoreWindow^, WindowActivatedEventArgs^>(this, &App::OnWindowActivationChanged);
   window->Closed += ref new TypedEventHandler<CoreWindow^, CoreWindowEventArgs^>(this, &App::OnWindowClosed);
+  // mouse, touch and pen
   window->PointerPressed += ref new TypedEventHandler<CoreWindow^, PointerEventArgs^>(this, &App::OnPointerPressed);
   window->PointerMoved += ref new TypedEventHandler<CoreWindow^, PointerEventArgs^>(this, &App::OnPointerMoved);
   window->PointerReleased += ref new TypedEventHandler<CoreWindow^, PointerEventArgs^>(this, &App::OnPointerReleased);
+  window->PointerExited += ref new TypedEventHandler<CoreWindow^, PointerEventArgs^>(this, &App::OnPointerExited);
   window->PointerWheelChanged += ref new TypedEventHandler<CoreWindow^, PointerEventArgs^>(this, &App::OnPointerWheelChanged);
+  // keyboard
   window->KeyDown += ref new TypedEventHandler<CoreWindow^, KeyEventArgs^>(this, &App::OnKeyDown);
   window->KeyUp += ref new TypedEventHandler<CoreWindow^, KeyEventArgs^>(this, &App::OnKeyUp);
   window->CharacterReceived += ref new TypedEventHandler<CoreWindow^, CharacterReceivedEventArgs^>(this, &App::OnCharacterReceived);
-
+  // display
   DisplayInformation^ currentDisplayInformation = DisplayInformation::GetForCurrentView();
   currentDisplayInformation->DpiChanged += ref new TypedEventHandler<DisplayInformation^, Object^>(this, &App::OnDpiChanged);
   currentDisplayInformation->OrientationChanged += ref new TypedEventHandler<DisplayInformation^, Object^>(this, &App::OnOrientationChanged);
-
   DisplayInformation::DisplayContentsInvalidated += ref new TypedEventHandler<DisplayInformation^, Object^>(this, &App::OnDisplayContentsInvalidated);
 
-  m_gesture = ref new GestureRecognizer();
-  m_gesture->GestureSettings = GestureSettings::ManipulationTranslateX |
-    GestureSettings::ManipulationTranslateY |
-    GestureSettings::ManipulationRotate |
-    GestureSettings::ManipulationTranslateInertia |
-    GestureSettings::ManipulationRotateInertia | 
-    GestureSettings::Hold | 
-    GestureSettings::Tap |
-    GestureSettings::ManipulationScale;
-
-  // Set up event handlers to respond to gesture recognizer output
-  m_gesture->ManipulationStarted += ref new TypedEventHandler<GestureRecognizer^, ManipulationStartedEventArgs^>(this, &App::OnManipulationStarted);
-  m_gesture->ManipulationUpdated += ref new TypedEventHandler<GestureRecognizer^, ManipulationUpdatedEventArgs^>(this, &App::OnManipulationUpdated);
-  m_gesture->ManipulationCompleted += ref new TypedEventHandler<GestureRecognizer^, ManipulationCompletedEventArgs^>(this, &App::OnManipulationCompleted);
-  m_gesture->ManipulationInertiaStarting += ref new TypedEventHandler<GestureRecognizer^, ManipulationInertiaStartingEventArgs^>(this, &App::OnManipulationInertiaStarting);
-  m_gesture->Tapped += ref new TypedEventHandler<GestureRecognizer^, TappedEventArgs^>(this, &App::OnTapped);
-  m_gesture->Holding += ref new TypedEventHandler<GestureRecognizer^, HoldingEventArgs^>(this, &App::OnHolding);
-#if _DEBUG
-  m_gesture->ShowGestureFeedback = true;
-#endif
   m_deviceResources->SetWindow(window);
+
+  CGenericTouchInputHandler::GetInstance().RegisterHandler(&CGenericTouchActionHandler::GetInstance());
+  CGenericTouchInputHandler::GetInstance().SetScreenDPI(m_deviceResources->GetDpi());
 }
 
 // Initializes scene resources, or loads a previously saved app state.
@@ -341,6 +329,11 @@ void App::OnWindowClosed(CoreWindow^ sender, CoreWindowEventArgs^ args)
 
 int mouseButton = 0;
 
+Point GetScreenPoint(Point point, float dpi)
+{
+  return Point(DX::ConvertDipsToPixels(point.X, dpi), DX::ConvertDipsToPixels(point.Y, dpi));
+}
+
 void App::OnPointerPressed(CoreWindow ^ sender, PointerEventArgs ^ args)
 {
   XBMC_Event newEvent;
@@ -348,17 +341,18 @@ void App::OnPointerPressed(CoreWindow ^ sender, PointerEventArgs ^ args)
 
   PointerPoint^ point = args->CurrentPoint;
   auto dpi = m_deviceResources->GetDpi();
+  auto position = GetScreenPoint(point->Position, dpi);
 
   if (point->PointerDevice->PointerDeviceType == PointerDeviceType::Touch)
   {
-    m_gesture->ProcessDownEvent(point);
+    CGenericTouchInputHandler::GetInstance().HandleTouchInput(TouchInputDown, position.X, position.Y, point->Timestamp, 0, 10);
     return;
   }
   else
   {
     newEvent.type = XBMC_MOUSEBUTTONDOWN;
-    newEvent.button.x = DX::ConvertDipsToPixels(point->Position.X, dpi);
-    newEvent.button.y = DX::ConvertDipsToPixels(point->Position.Y, dpi);
+    newEvent.button.x = position.X;
+    newEvent.button.y = position.Y;
     if (point->PointerDevice->PointerDeviceType == PointerDeviceType::Mouse)
     {
       if (point->Properties->IsLeftButtonPressed)
@@ -386,56 +380,58 @@ void App::OnPointerMoved(CoreWindow^ sender, PointerEventArgs^ args)
 {
   PointerPoint^ point = args->CurrentPoint;
   auto dpi = m_deviceResources->GetDpi();
+  auto position = GetScreenPoint(point->Position, dpi);
 
   if (point->PointerDevice->PointerDeviceType == PointerDeviceType::Touch)
   {
-    m_gesture->ProcessMoveEvents(args->GetIntermediatePoints());
+    if (point->IsInContact)
+    {
+      CGenericTouchInputHandler::GetInstance().UpdateTouchPointer(0, position.X, position.Y, point->Timestamp, 10.f);
+      CGenericTouchInputHandler::GetInstance().HandleTouchInput(TouchInputMove, position.X, position.Y, point->Timestamp, 0, 10.f);
+    }
     return;
   }
 
   XBMC_Event newEvent;
   memset(&newEvent, 0, sizeof(newEvent));
   newEvent.type = XBMC_MOUSEMOTION;
-  newEvent.motion.x = DX::ConvertDipsToPixels(point->Position.X, dpi);
-  newEvent.motion.y = DX::ConvertDipsToPixels(point->Position.Y, dpi);
+  newEvent.motion.x = position.X;
+  newEvent.motion.y = position.Y;
   CWinEvents::MessagePush(&newEvent);
-}
-
-Point GetScreenPoint(Point point, float dpi)
-{
-  return Point(DX::ConvertDipsToPixels(point.X, dpi), DX::ConvertDipsToPixels(point.Y, dpi));
 }
 
 void App::OnPointerReleased(CoreWindow^ sender, PointerEventArgs^ args)
 {
   PointerPoint^ point = args->CurrentPoint;
+  auto dpi = m_deviceResources->GetDpi();
+  auto position = GetScreenPoint(point->Position, dpi);
 
   if (point->PointerDevice->PointerDeviceType == PointerDeviceType::Touch)
   {
-    m_gesture->ProcessUpEvent(point);
+    CGenericTouchInputHandler::GetInstance().HandleTouchInput(TouchInputUp, position.X, position.Y, point->Timestamp, 0, 10);
     return;
   }
-
-  auto dpi = m_deviceResources->GetDpi();
-  auto onScreen = GetScreenPoint(point->Position, dpi);
 
   XBMC_Event newEvent;
   memset(&newEvent, 0, sizeof(newEvent));
   newEvent.type = XBMC_MOUSEBUTTONUP;
-  newEvent.button.x = DX::ConvertDipsToPixels(point->Position.X, dpi);
-  newEvent.button.y = DX::ConvertDipsToPixels(point->Position.Y, dpi);
+  newEvent.button.x = position.X;
+  newEvent.button.y = position.Y;
 
   // use cached value from OnPressed event
   newEvent.button.button = mouseButton;
   CWinEvents::MessagePush(&newEvent);
 }
 
-void App::OnPointerCanceled(CoreWindow^ sender, PointerEventArgs^ args)
+void App::OnPointerExited(CoreWindow^ sender, PointerEventArgs^ args)
 {
   PointerPoint^ point = args->CurrentPoint;
+  auto dpi = m_deviceResources->GetDpi();
+  auto position = GetScreenPoint(point->Position, dpi);
+
   if (point->PointerDevice->PointerDeviceType == PointerDeviceType::Touch)
   {
-    m_gesture->CompleteGesture();
+    CGenericTouchInputHandler::GetInstance().HandleTouchInput(TouchInputAbort, position.X, position.Y, point->Timestamp, 0, 10);
     return;
   }
 }
@@ -535,8 +531,6 @@ void App::OnKeyUp(CoreWindow^ sender, KeyEventArgs^ args)
   CWinEvents::MessagePush(&newEvent);
 }
 
-using namespace Windows::Devices::Input;
-
 void App::OnCharacterReceived(CoreWindow^ sender, CharacterReceivedEventArgs^ args)
 {
   XBMC_keysym keysym;
@@ -549,131 +543,7 @@ void App::OnCharacterReceived(CoreWindow^ sender, CharacterReceivedEventArgs^ ar
   CWinEvents::MessagePush(&newEvent);
 }
 
-void App::OnManipulationStarted(GestureRecognizer^ sender, ManipulationStartedEventArgs^ args)
-{
-  XBMC_Event newEvent;
-  memset(&newEvent, 0, sizeof(newEvent));
-
-  auto dpi = m_deviceResources->GetDpi();
-  auto onScreen = GetScreenPoint(args->Position, dpi);
-
-  newEvent.type = XBMC_TOUCH;
-  newEvent.touch.action = ACTION_GESTURE_BEGIN;
-  newEvent.touch.x = onScreen.X;
-  newEvent.touch.y = onScreen.Y;
-  newEvent.touch.x2 = 0.f;
-  newEvent.touch.y2 = 0.f;
-  newEvent.touch.pointers = 1;
-
-  CWinEvents::MessagePush(&newEvent);
-}
-
-void App::OnManipulationUpdated(GestureRecognizer^ sender, ManipulationUpdatedEventArgs^ args)
-{
-}
-
-void App::OnManipulationInertiaStarting(GestureRecognizer^ sender, ManipulationInertiaStartingEventArgs^ args)
-{
-  XBMC_Event newEvent;
-  memset(&newEvent, 0, sizeof(newEvent));
-
-  auto dpi = m_deviceResources->GetDpi();
-  float deltaXabs = fabs(args->Cumulative.Translation.X);
-  float deltaYabs = fabs(args->Cumulative.Translation.Y);
-  float varXabs = deltaYabs * 0.36397023f + (dpi * 0.2f) / 2;
-  float varYabs = deltaXabs * 0.36397023f + (dpi * 0.2f) / 2;
-  float minDistance = dpi * 0.5f;
-
-  int actionId = 0;
-  if (args->Cumulative.Translation.X > 0 && deltaXabs > minDistance)
-    actionId = ACTION_GESTURE_SWIPE_RIGHT;
-  else if (args->Cumulative.Translation.X < 0 && deltaXabs > minDistance)
-    actionId = ACTION_GESTURE_SWIPE_LEFT;
-  else if (args->Cumulative.Translation.Y > 0 && deltaYabs > minDistance)
-    actionId = ACTION_GESTURE_SWIPE_DOWN;
-  else if (args->Cumulative.Translation.Y < 0 && deltaYabs > minDistance)
-    actionId = ACTION_GESTURE_SWIPE_UP;
-  else
-    return;
-
-  CLog::Log(LOGDEBUG, __FUNCTION__"trans: %f , %f  -> %d", args->Cumulative.Translation.X, args->Cumulative.Translation.Y, actionId);
-
-  auto onScreen = GetScreenPoint(args->Position, dpi);
-  auto velScreen = GetScreenPoint(args->Velocities.Linear, dpi);
-
-  newEvent.type = XBMC_TOUCH;
-  newEvent.touch.action = actionId;
-  newEvent.touch.x = onScreen.X;
-  newEvent.touch.y = onScreen.Y;
-  newEvent.touch.x2 = velScreen.X * 1000; // px/ms * 1000 = px/s
-  newEvent.touch.y2 = velScreen.Y * 1000; // px/ms * 1000 = px/s
-  newEvent.touch.pointers = 10;
-
-  CWinEvents::MessagePush(&newEvent);
-}
-
-void App::OnManipulationCompleted(GestureRecognizer^ sender, ManipulationCompletedEventArgs^ args)
-{
-  XBMC_Event newEvent;
-  memset(&newEvent, 0, sizeof(newEvent));
-
-  auto dpi = m_deviceResources->GetDpi();
-  auto onScreen = GetScreenPoint(args->Position, dpi);
-
-  newEvent.type = XBMC_TOUCH;
-  newEvent.touch.action = ACTION_GESTURE_END;
-  newEvent.touch.x = onScreen.X;
-  newEvent.touch.y = onScreen.Y;
-  newEvent.touch.x2 = 0.f;
-  newEvent.touch.y2 = 0.f;
-  newEvent.touch.pointers = 1;
-
-  CWinEvents::MessagePush(&newEvent);
-}
-
-void App::OnTapped(GestureRecognizer^ sender, TappedEventArgs^ args)
-{
-  XBMC_Event newEvent;
-  memset(&newEvent, 0, sizeof(newEvent));
-
-  auto dpi = m_deviceResources->GetDpi();
-  auto onScreen = GetScreenPoint(args->Position, dpi);
-
-  newEvent.type = XBMC_TOUCH;
-  newEvent.touch.action = ACTION_TOUCH_TAP;
-  newEvent.touch.x = onScreen.X;
-  newEvent.touch.y = onScreen.Y;
-  newEvent.touch.x2 = 0.f;
-  newEvent.touch.y2 = 0.f;
-  newEvent.touch.pointers = 1;
-
-  CWinEvents::MessagePush(&newEvent);
-}
-
-void App::OnHolding(GestureRecognizer^ sender, HoldingEventArgs^ args)
-{
-  if (args->HoldingState == HoldingState::Started)
-  {
-    XBMC_Event newEvent;
-    memset(&newEvent, 0, sizeof(newEvent));
-
-    auto dpi = m_deviceResources->GetDpi();
-    auto onScreen = GetScreenPoint(args->Position, dpi);
-
-    newEvent.type = XBMC_TOUCH;
-    newEvent.touch.action = ACTION_TOUCH_LONGPRESS;
-    newEvent.touch.x = onScreen.X;
-    newEvent.touch.y = onScreen.Y;
-    newEvent.touch.x2 = 0.f;
-    newEvent.touch.y2 = 0.f;
-    newEvent.touch.pointers = 1;
-
-    CWinEvents::MessagePush(&newEvent);
-  }
-}
-
 // DisplayInformation event handlers.
-
 void App::OnDpiChanged(DisplayInformation^ sender, Object^ args)
 {
   // Note: The value for LogicalDpi retrieved here may not match the effective DPI of the app
@@ -685,6 +555,8 @@ void App::OnDpiChanged(DisplayInformation^ sender, Object^ args)
 
   auto size = m_deviceResources->GetOutputSize();
   UpdateWindowSize(size.Width, size.Height);
+
+  CGenericTouchInputHandler::GetInstance().SetScreenDPI(m_deviceResources->GetDpi());
 }
 
 void App::OnOrientationChanged(DisplayInformation^ sender, Object^ args)
