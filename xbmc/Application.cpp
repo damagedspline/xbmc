@@ -2691,7 +2691,6 @@ void CApplication::FrameMove(bool processEvents, bool processGUI)
       }
       g_graphicsContext.Unlock();
     }
-    CWinEvents::MessagePump();
 
     CServiceBroker::GetInputManager().Process(g_windowManager.GetActiveWindowID(), frameTime);
 
@@ -2745,6 +2744,9 @@ void CApplication::FrameMove(bool processEvents, bool processGUI)
   }
 
   m_pPlayer->FrameMove();
+
+  // this will go away when render systems gets its own thread
+  g_Windowing.DriveRenderLoop();
 }
 
 

@@ -23,6 +23,7 @@
 #include <string.h>
 #include <float.h>
 
+#include "WinEventsAndroid.h"
 #include "ServiceBroker.h"
 #include "guilib/GraphicContext.h"
 #include "guilib/Resolution.h"
@@ -59,6 +60,8 @@ CWinSystemAndroid::CWinSystemAndroid()
   m_delayDispReset = false;
 
   m_android = nullptr;
+
+  m_winEvents.reset(new CWinEventsAndroid());
 }
 
 CWinSystemAndroid::~CWinSystemAndroid()

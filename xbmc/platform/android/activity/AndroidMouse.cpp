@@ -23,7 +23,6 @@
 #include "XBMCApp.h"
 #include "Application.h"
 #include "guilib/GUIWindowManager.h"
-#include "windowing/WinEvents.h"
 #include "input/MouseStat.h"
 
 //#define DEBUG_VERBOSE
@@ -81,7 +80,7 @@ void CAndroidMouse::MouseMove(float x, float y)
   newEvent.type = XBMC_MOUSEMOTION;
   newEvent.motion.x = x;
   newEvent.motion.y = y;
-  CWinEvents::MessagePush(&newEvent);
+  g_application.OnEvent(newEvent);
 }
 
 void CAndroidMouse::MouseButton(float x, float y, int32_t action, int32_t buttons)
@@ -106,7 +105,7 @@ void CAndroidMouse::MouseButton(float x, float y, int32_t action, int32_t button
     newEvent.button.button = XBMC_BUTTON_RIGHT;
   else if (checkButtons & AMOTION_EVENT_BUTTON_TERTIARY)
     newEvent.button.button = XBMC_BUTTON_MIDDLE;
-  CWinEvents::MessagePush(&newEvent);
+  g_application.OnEvent(newEvent);
 
   m_lastButtonState = buttons;
 }
@@ -136,10 +135,10 @@ void CAndroidMouse::MouseWheel(float x, float y, float value)
   newEvent.button.x = x;
   newEvent.button.y = y;
 
-  CWinEvents::MessagePush(&newEvent);
+  g_application.OnEvent(newEvent);
 
   newEvent.type = XBMC_MOUSEBUTTONUP;
 
-  CWinEvents::MessagePush(&newEvent);
+  g_application.OnEvent(newEvent);
 }
 
