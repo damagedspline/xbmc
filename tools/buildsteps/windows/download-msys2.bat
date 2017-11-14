@@ -31,8 +31,8 @@ set msys2=msys64
 set build32=yes
 set build64=no
 set instdir=%WORKSPACE%\project\BuildDependencies
-set msyspackages=autoconf automake libtool m4 make gettext patch pkg-config wget p7zip coreutils gcc perl
-set mingwpackages=dlfcn gcc gcc-libs gettext libiconv libgpg-error libpng yasm nettle libtasn1 openssl xz
+set msyspackages=autoconf automake libtool patch pkg-config p7zip diffutils make gcc perl yasm
+set mingwpackages=dlfcn gcc gcc-libs
 set gaspreprocurl=https://github.com/FFmpeg/gas-preprocessor/archive/master.tar.gz
 set usemirror=yes
 set opt=mintty
@@ -105,9 +105,9 @@ if exist "%downloaddir%\%msysfile%" GOTO unpack
 :unpack
 if exist "%downloaddir%\%msysfile%" (
     echo -------------------------------------------------------------------------------
-    echo.- Install msys2 basic system
+    echo.- Installing msys2 basic system
     echo -------------------------------------------------------------------------------
-	%unpack_exe% x %downloaddir%\%msysfile% -so | %unpack_exe% x -aoa -si -ttar -o%instdir%
+	%unpack_exe% x %downloaddir%\%msysfile% -so 2>NUL | %unpack_exe% x -aoa -si -ttar -o%instdir% >NUL 2>NUL
 	)
 	
 if not exist %instdir%\%msys2%\usr\bin\msys-2.0.dll (
@@ -529,11 +529,17 @@ if %build32%==no GOTO loginProfile64
 :loadGasPreproc
 set gaspreprocfile=gas-preprocessor.tar.gz
 if exist %downloaddir%\%gaspreprocfile% goto extractGasPreproc
-    %instdir%\bin\wget --tries=20 --retry-connrefused --waitretry=2 --no-check-certificate -c -O %downloaddir%\%gaspreprocfile% %gaspreprocurl%
+    echo -------------------------------------------------------------------------------
+    echo.- Downloading gas-preprocessor.pl
+    echo -------------------------------------------------------------------------------
+    %instdir%\bin\wget --quiet --tries=20 --retry-connrefused --waitretry=2 --no-check-certificate -c -O %downloaddir%\%gaspreprocfile% %gaspreprocurl%
 
 :extractGasPreproc
 if exist %instdir%\%msys2%\usr\bin\gas-preprocessor.pl goto end
-    %unpack_exe% x %downloaddir%\%gaspreprocfile% -so | %unpack_exe% e -si -ttar -o%instdir%\%msys2%\usr\bin *.pl -r
+    echo -------------------------------------------------------------------------------
+    echo.- Installing gas-preprocessor.pl
+    echo -------------------------------------------------------------------------------
+    %unpack_exe% x %downloaddir%\%gaspreprocfile% -so 2>NUL | %unpack_exe% e -si -ttar -o%instdir%\%msys2%\usr\bin *.pl -r >NUL 2>NUL
 
 :end
 cd %instdir%

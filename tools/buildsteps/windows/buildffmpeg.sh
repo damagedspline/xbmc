@@ -109,10 +109,12 @@ if [ "$TOOLS" = "msvc" ]; then
     extra_ldflags=$extra_ldflags" -APPCONTAINER WindowsApp.lib"
   else
     # compile ffmpeg with debug symbols
-    do_removeOption "--disable-debug"
-    do_addOption "--enable-debug"
-    extra_cflags=$extra_cflags" -MDd"
-    extra_ldflags=$extra_ldflags" -NODEFAULTLIB:libcmt"
+    if do_checkForOptions "--enable-debug"; then
+      do_removeOption "--disable-debug"
+      extra_cflags=$extra_cflags" -MDd"
+      extra_ldflags=$extra_ldflags" -NODEFAULTLIB:libcmt"
+    fi
+    do_addOption "--enable-schannel"
   fi
 fi
 

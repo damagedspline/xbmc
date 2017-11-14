@@ -23,7 +23,7 @@ do_load_autoconf $LIBDVDCSS_VERSION_FILE
 CC="gcc -static-libgcc" \
 $LOCALSRCDIR/configure \
    --prefix=$LIBDVDPREFIX \
-   CFLAGS="-DNDEBUG" \
+   CFLAGS="-D_WIN32 -DNDEBUG" \
    --disable-doc \
    --with-pic \
    --build="$MINGW_CHOST"
@@ -38,7 +38,7 @@ $LOCALSRCDIR/configure \
    --disable-shared \
    --enable-static \
    --with-libdvdcss \
-   CFLAGS="-DHAVE_DVDCSS_DVDCSS_H -D_XBMC -DNDEBUG -I$LIBDVDPREFIX/include" \
+   CFLAGS="-D_WIN32 -DHAVE_DVDCSS_DVDCSS_H -D_XBMC -DNDEBUG -I$LIBDVDPREFIX/include" \
    --build="$MINGW_CHOST"
 do_makelib $MAKEFLAGS
 
@@ -49,7 +49,7 @@ $LOCALSRCDIR/configure \
    --prefix=$LIBDVDPREFIX \
    --disable-shared \
    --enable-static \
-   CFLAGS="-D_XBMC -DNDEBUG -I$LIBDVDPREFIX/include" \
+   CFLAGS="-D_WIN32 -D_XBMC -DNDEBUG -I$LIBDVDPREFIX/include" \
    --build="$MINGW_CHOST"
 do_makelib $MAKEFLAGS
 
