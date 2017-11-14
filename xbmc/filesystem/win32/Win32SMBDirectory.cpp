@@ -79,13 +79,13 @@ inline static std::wstring prepareWin32SMBDirectoryName(const CURL& url)
   return nameW;
 }
 
-CWin32SMBDirectory::CWin32SMBDirectory(void)
+CWinSMBDirectory::CWinSMBDirectory(void)
 {}
 
-CWin32SMBDirectory::~CWin32SMBDirectory(void)
+CWinSMBDirectory::~CWinSMBDirectory(void)
 {}
 
-bool CWin32SMBDirectory::GetDirectory(const CURL& url, CFileItemList &items)
+bool CWinSMBDirectory::GetDirectory(const CURL& url, CFileItemList &items)
 {
   assert(url.IsProtocol("smb"));
   items.Clear();
@@ -198,12 +198,12 @@ bool CWin32SMBDirectory::GetDirectory(const CURL& url, CFileItemList &items)
   return true;
 }
 
-bool CWin32SMBDirectory::Create(const CURL& url)
+bool CWinSMBDirectory::Create(const CURL& url)
 {
   return RealCreate(url, true);
 }
 
-bool CWin32SMBDirectory::RealCreate(const CURL& url, bool tryToConnect)
+bool CWinSMBDirectory::RealCreate(const CURL& url, bool tryToConnect)
 {
   assert(url.IsProtocol("smb"));
   if (url.GetHostName().empty() || url.GetShareName().empty() || url.GetFileName() == url.GetShareName())
@@ -241,7 +241,7 @@ bool CWin32SMBDirectory::RealCreate(const CURL& url, bool tryToConnect)
   return true;
 }
 
-bool CWin32SMBDirectory::Exists(const CURL& url)
+bool CWinSMBDirectory::Exists(const CURL& url)
 {
   return RealExists(url, true);
 }
@@ -250,7 +250,7 @@ bool CWin32SMBDirectory::Exists(const CURL& url)
 // * presence of directory on remove share (smb://server/share/dir)
 // * presence of remote share on server (smb://server/share)
 // * presence of smb server in network (smb://server)
-bool CWin32SMBDirectory::RealExists(const CURL& url, bool tryToConnect)
+bool CWinSMBDirectory::RealExists(const CURL& url, bool tryToConnect)
 {
   assert(url.IsProtocol("smb"));
 
@@ -326,7 +326,7 @@ bool CWin32SMBDirectory::RealExists(const CURL& url, bool tryToConnect)
   return false;
 }
 
-bool CWin32SMBDirectory::Remove(const CURL& url)
+bool CWinSMBDirectory::Remove(const CURL& url)
 {
   assert(url.IsProtocol("smb"));
   std::wstring nameW(prepareWin32SMBDirectoryName(url));
@@ -346,7 +346,7 @@ bool CWin32SMBDirectory::Remove(const CURL& url)
   return !RealExists(url, false);
 }
 
-bool CWin32SMBDirectory::GetNetworkResources(const CURL& basePath, CFileItemList& items)
+bool CWinSMBDirectory::GetNetworkResources(const CURL& basePath, CFileItemList& items)
 {
   assert(basePath.GetShareName().empty()); // this function returns only servers or shares
 
@@ -602,7 +602,7 @@ static bool localGetShares(const std::wstring& serverNameToScan, const std::stri
   return true;
 }
 
-bool CWin32SMBDirectory::ConnectAndAuthenticate(CURL& url, bool allowPromptForCredential /*= false*/)
+bool CWinSMBDirectory::ConnectAndAuthenticate(CURL& url, bool allowPromptForCredential /*= false*/)
 {
   assert(url.IsProtocol("smb"));
   if (url.GetHostName().empty())

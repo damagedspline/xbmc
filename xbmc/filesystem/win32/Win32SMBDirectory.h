@@ -23,14 +23,14 @@
 
 namespace XFILE
 {
-  class CWin32SMBFile; // forward declaration
+  class CWinSMBFile; // forward declaration
 
-  class CWin32SMBDirectory : public IDirectory
+  class CWinSMBDirectory : public IDirectory
   {
     friend class CWin32SMBFile;
   public:
-    CWin32SMBDirectory(void);
-    virtual ~CWin32SMBDirectory(void);
+    CWinSMBDirectory(void);
+    virtual ~CWinSMBDirectory(void);
     virtual bool GetDirectory(const CURL& url, CFileItemList& items);
     virtual bool Create(const CURL& url);
     virtual bool Exists(const CURL& url);

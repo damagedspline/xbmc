@@ -19,11 +19,11 @@
 *
 */
 
-#include "Win32File.h"
+#include "WinLibraryFile.h"
 
 namespace XFILE
 {
-  class CWinSMBFile : public CWin32File
+  class CWinSMBFile : public CWinLibraryFile
   {
   public:
     CWinSMBFile();

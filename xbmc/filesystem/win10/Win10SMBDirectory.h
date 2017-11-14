@@ -19,25 +19,25 @@
 *
 */
 
-#include "Win32File.h"
+#include "filesystem/IDirectory.h"
 
 namespace XFILE
 {
-  class CWinSMBFile : public CWin32File
+  class CWinSMBFile; // forward declaration
+
+  class CWinSMBDirectory : public IDirectory
   {
+    friend class CWinSMBFile;
   public:
-    CWinSMBFile();
-    virtual ~CWinSMBFile();
-    virtual bool Open(const CURL& url);
-    virtual bool OpenForWrite(const CURL& url, bool bOverWrite = false);
-
-    virtual bool Delete(const CURL& url);
-    virtual bool Rename(const CURL& urlCurrentName, const CURL& urlNewName);
-    virtual bool SetHidden(const CURL& url, bool hidden);
+    CWinSMBDirectory(void);
+    virtual ~CWinSMBDirectory(void);
+    virtual bool GetDirectory(const CURL& url, CFileItemList& items);
+    virtual bool Create(const CURL& url);
     virtual bool Exists(const CURL& url);
-    virtual int Stat(const CURL& url, struct __stat64* statData);
-  private:
-    static bool ConnectAndAuthenticate(const CURL& url);
+    virtual bool Remove(const CURL& url);
+  protected:
+    bool RealCreate(const CURL& url, bool tryToConnect);
+    bool RealExists(const CURL& url, bool tryToConnect);
+    bool ConnectAndAuthenticate(CURL& url, bool allowPromptForCredential = false);
   };
-
 }

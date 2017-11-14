@@ -43,20 +43,20 @@ static bool worthTryToConnect(const DWORD lastErr)
 }
 
 
-bool CWin32SMBFile::ConnectAndAuthenticate(const CURL& url)
+bool CWinSMBFile::ConnectAndAuthenticate(const CURL& url)
 {
   CURL authUrl(url);
   CWin32SMBDirectory smbDir;
   return smbDir.ConnectAndAuthenticate(authUrl, false);
 }
 
-CWin32SMBFile::CWin32SMBFile() : CWin32File(true)
+CWinSMBFile::CWinSMBFile() : CWin32File(true)
 { }
 
-CWin32SMBFile::~CWin32SMBFile()
+CWinSMBFile::~CWinSMBFile()
 { /* cleanup by CWin32File destructor */ }
 
-bool CWin32SMBFile::Open(const CURL& url)
+bool CWinSMBFile::Open(const CURL& url)
 {
   assert(url.IsProtocol("smb")); // function suitable only for SMB files
   if (CWin32File::Open(url))
@@ -65,7 +65,7 @@ bool CWin32SMBFile::Open(const CURL& url)
   return worthTryToConnect(m_lastSMBFileErr) && ConnectAndAuthenticate(url) && CWin32File::Open(url);
 }
 
-bool CWin32SMBFile::OpenForWrite(const CURL& url, bool bOverWrite /*= false*/)
+bool CWinSMBFile::OpenForWrite(const CURL& url, bool bOverWrite /*= false*/)
 {
   assert(url.IsProtocol("smb")); // function suitable only for SMB files
   if (CWin32File::OpenForWrite(url, bOverWrite))
@@ -74,7 +74,7 @@ bool CWin32SMBFile::OpenForWrite(const CURL& url, bool bOverWrite /*= false*/)
   return worthTryToConnect(m_lastSMBFileErr) && ConnectAndAuthenticate(url) && CWin32File::OpenForWrite(url, bOverWrite);
 }
 
-bool CWin32SMBFile::Delete(const CURL& url)
+bool CWinSMBFile::Delete(const CURL& url)
 {
   assert(url.IsProtocol("smb")); // function suitable only for SMB files
 
@@ -84,7 +84,7 @@ bool CWin32SMBFile::Delete(const CURL& url)
   return worthTryToConnect(m_lastSMBFileErr) && ConnectAndAuthenticate(url) && CWin32File::Delete(url);
 }
 
-bool CWin32SMBFile::Rename(const CURL& urlCurrentName, const CURL& urlNewName)
+bool CWinSMBFile::Rename(const CURL& urlCurrentName, const CURL& urlNewName)
 {
   assert(urlCurrentName.IsProtocol("smb")); // function suitable only for SMB files
   assert(urlNewName.IsProtocol("smb")); // function suitable only for SMB files
@@ -96,7 +96,7 @@ bool CWin32SMBFile::Rename(const CURL& urlCurrentName, const CURL& urlNewName)
     CWin32File::Rename(urlCurrentName, urlNewName);
 }
 
-bool CWin32SMBFile::SetHidden(const CURL& url, bool hidden)
+bool CWinSMBFile::SetHidden(const CURL& url, bool hidden)
 {
   assert(url.IsProtocol("smb")); // function suitable only for SMB files
 
@@ -126,7 +126,7 @@ bool CWin32SMBFile::SetHidden(const CURL& url, bool hidden)
   return SetFileAttributesW(pathnameW.c_str(), attrs & ~FILE_ATTRIBUTE_HIDDEN) != 0;
 }
 
-bool CWin32SMBFile::Exists(const CURL& url)
+bool CWinSMBFile::Exists(const CURL& url)
 {
   assert(url.IsProtocol("smb")); // function suitable only for SMB files
   std::wstring pathnameW(CWIN32Util::ConvertPathToWin32Form(url));
@@ -145,7 +145,7 @@ bool CWin32SMBFile::Exists(const CURL& url)
   return (attrs & FILE_ATTRIBUTE_DIRECTORY) == 0;
 }
 
-int CWin32SMBFile::Stat(const CURL& url, struct __stat64* statData)
+int CWinSMBFile::Stat(const CURL& url, struct __stat64* statData)
 {
   assert(url.IsProtocol("smb")); // function suitable only for SMB files
 

@@ -160,7 +160,7 @@ IFile* CFileFactory::CreateLoader(const CURL& url)
     else if (url.IsProtocol("shout")) return new CShoutcastFile();
 #ifdef HAS_FILESYSTEM_SMB
 #ifdef TARGET_WINDOWS
-    else if (url.IsProtocol("smb")) return new CWin32SMBFile();
+    else if (url.IsProtocol("smb")) return new CWinSMBFile();
 #else
     else if (url.IsProtocol("smb")) return new CSMBFile();
 #endif

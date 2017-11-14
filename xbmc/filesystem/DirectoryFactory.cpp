@@ -164,7 +164,7 @@ IDirectory* CDirectoryFactory::Create(const CURL& url)
 #endif
 #ifdef HAS_FILESYSTEM_SMB
 #ifdef TARGET_WINDOWS
-    if (url.IsProtocol("smb")) return new CWin32SMBDirectory();
+    if (url.IsProtocol("smb")) return new CWinSMBDirectory();
 #else
     if (url.IsProtocol("smb")) return new CSMBDirectory();
 #endif
