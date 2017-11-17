@@ -31,7 +31,9 @@
 #include "ShoutcastFile.h"
 #ifdef HAS_FILESYSTEM_SMB
 #ifdef TARGET_WINDOWS
+#ifdef TARGET_WINDOWS_DESKTOP
 #include "win32/Win32SMBFile.h"
+#endif
 #else
 #include "SMBFile.h"
 #endif
@@ -160,7 +162,9 @@ IFile* CFileFactory::CreateLoader(const CURL& url)
     else if (url.IsProtocol("shout")) return new CShoutcastFile();
 #ifdef HAS_FILESYSTEM_SMB
 #ifdef TARGET_WINDOWS
+#ifdef TARGET_WINDOWS_DESKTOP
     else if (url.IsProtocol("smb")) return new CWin32SMBFile();
+#endif
 #else
     else if (url.IsProtocol("smb")) return new CSMBFile();
 #endif
