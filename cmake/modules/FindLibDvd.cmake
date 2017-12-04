@@ -202,18 +202,81 @@ if(NOT WIN32)
     set(LIBDVD_FOUND 1 CACHE BOOL "libdvd found" FORCE)
     endif()
 else()
-  # Dynamically loaded on Windows
-  find_path(LIBDVD_INCLUDE_DIR dvdcss/dvdcss.h)
-
+  # windows specific builds
+  find_program(PATCH patch)
   include(FindPackageHandleStandardArgs)
-  find_package_handle_standard_args(LibDvd REQUIRED_VARS LIBDVD_INCLUDE_DIR)
+  find_package_handle_standard_args(PATCH REQUIRED_VARS PATCH)
 
-  if(LIBDVD_FOUND)
-    set(LIBDVD_INCLUDE_DIRS ${LIBDVD_INCLUDE_DIR})
+  set(INSTALL_PREFIX ${CMAKE_BINARY_DIR}/${CORE_BUILD_DIR}/libdvd)
+  set(DEPENDS_TARGETS_DIR ${CMAKE_SOURCE_DIR}/tools/depends/target)
+  set(dvdlibs libdvdcss libdvdread libdvdnav)
 
-    add_custom_target(dvdnav)
-    set_target_properties(dvdnav PROPERTIES FOLDER "External Projects")
+  foreach(dvdlib ${dvdlibs})
+    file(GLOB VERSION_FILE ${CMAKE_SOURCE_DIR}/tools/depends/target/${dvdlib}/DVD*-VERSION)
+    file(STRINGS ${VERSION_FILE} VER)
+    string(REGEX MATCH "VERSION=[^ ]*$.*" ${dvdlib}_VER "${VER}")
+    list(GET ${dvdlib}_VER 0 ${dvdlib}_VER)
+    string(SUBSTRING "${${dvdlib}_VER}" 8 -1 ${dvdlib}_VER)
+    string(REGEX MATCH "BASE_URL=([^ ]*)" ${dvdlib}_BASE_URL "${VER}")
+    list(GET ${dvdlib}_BASE_URL 0 ${dvdlib}_BASE_URL)
+    string(SUBSTRING "${${dvdlib}_BASE_URL}" 9 -1 ${dvdlib}_BASE_URL)
+    string(TOUPPER ${dvdlib} DVDLIB)
+    set(${DVDLIB}_URL ${${dvdlib}_BASE_URL}/archive/${${dvdlib}_VER}.tar.gz)
+  endforeach()
+
+  if(CMAKE_SYSTEM_NAME STREQUAL WindowsStore)
+    set(LIBDVD_ADDITIONAL_ARGS "-DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}" "-DCMAKE_SYSTEM_VERSION=${CMAKE_SYSTEM_VERSION}")
   endif()
 
-  mark_as_advanced(LIBDVD_INCLUDE_DIR)
+  ExternalProject_Add(dvdcss
+    URL ${LIBDVDCSS_URL}
+    DOWNLOAD_DIR ${CMAKE_SOURCE_DIR}/project/BuildDependencies/downloads
+    DOWNLOAD_NAME libdvdcss-${libdvdcss_VER}.tar.gz
+    PATCH_COMMAND 
+    COMMAND 
+      ${PATCH} -p1 -i ${DEPENDS_TARGETS_DIR}/lib$(TargetName)/0001-added-cmake-build-system.patch
+    CMAKE_ARGS
+      ${LIBDVD_ADDITIONAL_ARGS}
+      -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR}/${CORE_BUILD_DIR}/libdvd
+  )
+  set_target_properties(dvdcss PROPERTIES FOLDER "External Projects")
+
+  ExternalProject_Add(dvdread
+    DEPENDS dvdcss
+    URL ${LIBDVDREAD_URL}
+    DOWNLOAD_DIR ${CMAKE_SOURCE_DIR}/project/BuildDependencies/downloads
+    DOWNLOAD_NAME libdvdread-${libdvdread_VER}.tar.gz
+    PATCH_COMMAND 
+      COMMAND ${PATCH} -p1 -i ${DEPENDS_TARGETS_DIR}/lib$(TargetName)/0001-added-cmake-build-system.patch
+    CMAKE_ARGS
+      ${LIBDVD_ADDITIONAL_ARGS}
+      -DCMAKE_PREFIX_PATH:PATH=${CMAKE_BINARY_DIR}/${CORE_BUILD_DIR}/libdvd
+      -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR}/${CORE_BUILD_DIR}/libdvd
+  )
+  set_target_properties(dvdread PROPERTIES FOLDER "External Projects")
+
+  set(DVDNAV_LIBRARY ${CMAKE_BINARY_DIR}/${CORE_BUILD_DIR}/libdvd/lib/libdvdnav.lib)
+  ExternalProject_Add(dvdnav
+    DEPENDS dvdcss dvdread
+    URL ${LIBDVDNAV_URL}
+    DOWNLOAD_DIR ${CMAKE_SOURCE_DIR}/project/BuildDependencies/downloads
+    DOWNLOAD_NAME libdvdnav-${libdvdnav_VER}.tar.gz
+    PATCH_COMMAND 
+      COMMAND ${PATCH} -p1 -i ${DEPENDS_TARGETS_DIR}/lib$(TargetName)/0001-added-cmake-build-system.patch
+    CMAKE_ARGS
+      ${LIBDVD_ADDITIONAL_ARGS}
+      -DCMAKE_PREFIX_PATH:PATH=${CMAKE_BINARY_DIR}/${CORE_BUILD_DIR}/libdvd
+      -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR}/${CORE_BUILD_DIR}/libdvd
+  )
+  set_target_properties(dvdnav PROPERTIES FOLDER "External Projects")
+
+  set(LIBDVD_INCLUDE_DIRS ${CMAKE_BINARY_DIR}/${CORE_BUILD_DIR}/libdvd/include)
+  set(LIBDVD_LIBRARIES ${DVDNAV_LIBRARY})
+  set(LIBDVD_LIBRARIES ${LIBDVD_LIBRARIES} CACHE STRING "libdvd libraries" FORCE)
+  set(LIBDVD_FOUND 1 CACHE BOOL "libdvd found" FORCE)
+  set(LIBDVD_TARGET_DIR .)
+  if(CMAKE_SYSTEM_NAME STREQUAL WindowsStore)
+    set(LIBDVD_TARGET_DIR dlls)
+  endif()
+  copy_file_to_buildtree(${CMAKE_BINARY_DIR}/${CORE_BUILD_DIR}/libdvd/bin/libdvdnav.dll DIRECTORY ${LIBDVD_TARGET_DIR})
 endif()

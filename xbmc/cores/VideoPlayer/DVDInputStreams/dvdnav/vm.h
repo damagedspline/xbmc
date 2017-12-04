@@ -23,7 +23,6 @@
 #ifndef LIBDVDNAV_VM_H
 #define LIBDVDNAV_VM_H
 
-#include "remap.h"
 #include "dvdnav_internal.h"
 
 /* DOMAIN enum */
@@ -86,7 +85,6 @@ typedef struct {
   int32_t       hop_channel;
   char          dvd_name[50];
   char          dvd_serial[15];
-  remap_t      *map;
   int           stopped;
 } vm_t;
 
