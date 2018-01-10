@@ -25,6 +25,7 @@
 #include "guilib/gui3d.h"
 #include "guilib/GraphicContext.h"
 #include "messaging/ApplicationMessenger.h"
+#include "platform/win10/AsyncHelpers.h"
 #include "platform/win32/CharsetConverter.h"
 #include "rendering/dx/DirectXHelper.h"
 #include "ServiceBroker.h"
@@ -41,6 +42,7 @@
 
 #pragma pack(push,8)
 
+#include <collection.h>
 #include <tpcshrd.h>
 #include <ppltasks.h>
 
@@ -361,8 +363,6 @@ const MONITOR_DETAILS* CWinSystemWin10::GetMonitor(int screen) const
 
 int CWinSystemWin10::GetCurrentScreen()
 {
-  CLog::Log(LOGDEBUG, "%s is not implemented", __FUNCTION__);
-  // fallback to default
   return 0;
 }
 
@@ -386,9 +386,43 @@ bool CWinSystemWin10::ChangeResolution(const RESOLUTION_INFO& res, bool forceCha
   if (!details)
     return false;
 
-  CLog::Log(LOGDEBUG, "%s is not implemented", __FUNCTION__);
+  if (Windows::Foundation::Metadata::ApiInformation::IsTypePresent("Windows.Graphics.Display.Core.HdmiDisplayInformation"))
+  {
+    auto hdmiInfo = Windows::Graphics::Display::Core::HdmiDisplayInformation::GetForCurrentView();
+    if (hdmiInfo != nullptr)
+    {
+      // default mode not in list of supported display modes
+      if (res.iScreenWidth == details->ScreenWidth && res.iScreenHeight == details->ScreenHeight
+        && fabs(res.fRefreshRate - details->RefreshRate) <= 0.00001)
+      {
+        Wait(hdmiInfo->SetDefaultDisplayModeAsync());
+        return true;
+      }
 
-  return true;
+      bool needStereo = g_graphicsContext.GetStereoMode() == RENDER_STEREO_MODE_HARDWAREBASED;
+      auto hdmiModes = hdmiInfo->GetSupportedDisplayModes();
+
+      Windows::Graphics::Display::Core::HdmiDisplayMode^ selected = nullptr;
+      for (auto mode : Windows::Foundation::Collections::to_vector(hdmiModes))
+      {
+        if ( res.iScreenWidth == mode->ResolutionWidthInRawPixels && res.iScreenHeight == mode->ResolutionHeightInRawPixels
+          && fabs(res.fRefreshRate - mode->RefreshRate) <= 0.00001)
+        {
+          selected = mode;
+          if (needStereo == mode->StereoEnabled)
+            break;
+        }
+      }
+
+      if (selected != nullptr)
+      {
+        return Wait(hdmiInfo->RequestSetCurrentDisplayModeAsync(selected));
+      }
+      return false;
+    }
+  }
+  CLog::LogFunction(LOGDEBUG, __FUNCTION__, "Not supported.");
+  return false;
 }
 
 void CWinSystemWin10::UpdateResolutions()
@@ -418,6 +452,22 @@ void CWinSystemWin10::UpdateResolutions()
 
   UpdateDesktopResolution(CDisplaySettings::GetInstance().GetResolutionInfo(RES_DESKTOP), 0, w, h, refreshRate, dwFlags);
   CLog::Log(LOGNOTICE, "Primary mode: %s", CDisplaySettings::GetInstance().GetResolutionInfo(RES_DESKTOP).strMode.c_str());
+
+  if (Windows::Foundation::Metadata::ApiInformation::IsTypePresent("Windows.Graphics.Display.Core.HdmiDisplayInformation"))
+  {
+    auto hdmiInfo = Windows::Graphics::Display::Core::HdmiDisplayInformation::GetForCurrentView();
+    if (hdmiInfo != nullptr)
+    {
+      auto hdmiModes = hdmiInfo->GetSupportedDisplayModes();
+      for (auto mode : Windows::Foundation::Collections::to_vector(hdmiModes))
+      {
+        RESOLUTION_INFO res;
+        UpdateDesktopResolution(res, 0, mode->ResolutionWidthInRawPixels, mode->ResolutionHeightInRawPixels, mode->RefreshRate, 0);
+        AddResolution(res);
+        CLog::Log(LOGNOTICE, "Additional mode: %s", res.strMode.c_str());
+      }
+    }
+  }
 
   // Desktop resolution of the other screens
   if (m_MonitorsInfo.size() >= 2)
@@ -465,8 +515,6 @@ void CWinSystemWin10::AddResolution(const RESOLUTION_INFO &res)
 
 bool CWinSystemWin10::UpdateResolutionsInternal()
 {
-  CLog::Log(LOGNOTICE, "Win10 UWP Found screen. Need to update code to use DirectX!");
-
   auto dispatcher = m_coreWindow->Dispatcher;
   auto handler = ref new Windows::UI::Core::DispatchedHandler([this]()
   {
@@ -498,8 +546,27 @@ bool CWinSystemWin10::UpdateResolutionsInternal()
     md.ScreenWidth = flipResolution ? displayInfo->ScreenHeightInRawPixels : displayInfo->ScreenWidthInRawPixels;
     md.ScreenHeight = flipResolution ? displayInfo->ScreenWidthInRawPixels : displayInfo->ScreenHeightInRawPixels;
 
-    // note that refresh rate information is not available on Win10 UWP
-    md.RefreshRate = 60;
+    if (Windows::Foundation::Metadata::ApiInformation::IsTypePresent("Windows.Graphics.Display.Core.HdmiDisplayInformation"))
+    {
+      auto hdmiInfo = Windows::Graphics::Display::Core::HdmiDisplayInformation::GetForCurrentView();
+      if (hdmiInfo != nullptr)
+      {
+        auto currentMode = hdmiInfo->GetCurrentDisplayMode();
+        md.RefreshRate = currentMode->RefreshRate;
+        md.Bpp = currentMode->BitsPerPixel;
+      }
+      else
+      {
+        md.RefreshRate = 60.0;
+        md.Bpp = 24;
+      }
+    }
+    else
+    {
+      // note that refresh rate information is not available on Win10 UWP
+      md.RefreshRate = 60.0;
+      md.Bpp = 24;
+    }
     md.Interlaced = false;
 
     m_MonitorsInfo.push_back(md);
