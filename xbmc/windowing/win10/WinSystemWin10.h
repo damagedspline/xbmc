@@ -72,7 +72,7 @@ struct MONITOR_DETAILS
   // Windows desktop info
   int       ScreenWidth;
   int       ScreenHeight;
-  int       RefreshRate;
+  double    RefreshRate;
   int       Bpp;
   bool      Interlaced;
 
