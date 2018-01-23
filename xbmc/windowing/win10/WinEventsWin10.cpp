@@ -27,17 +27,21 @@
 #include "input/touch/generic/GenericTouchInputHandler.h"
 #include "messaging/ApplicationMessenger.h"
 #include "rendering/dx/DeviceResources.h"
+#include "platform/win10/AsyncHelpers.h"
 #include "rendering/dx/RenderContext.h"
 #include "utils/log.h"
 #include "utils/SystemInfo.h"
 #include "windowing/windows/WinKeyMap.h"
 #include "WinEventsWin10.h"
 
+#include <collection.h>
+
 using namespace PERIPHERALS;
 using namespace KODI::MESSAGING;
 using namespace Windows::Devices::Input;
 using namespace Windows::Foundation;
 using namespace Windows::Graphics::Display;
+using namespace Windows::Graphics::Display::Core;
 using namespace Windows::System;
 using namespace Windows::UI::Core;
 using namespace Windows::UI::Input;
@@ -101,6 +105,14 @@ void CWinEventsWin10::InitEventHandlers(CoreWindow^ window)
   window->SizeChanged += ref new TypedEventHandler<CoreWindow^, WindowSizeChangedEventArgs^>([&](CoreWindow^ wnd, WindowSizeChangedEventArgs^ args) {
     OnWindowSizeChanged(wnd, args);
   });
+#if defined(NTDDI_WIN10_RS2) && (NTDDI_VERSION >= NTDDI_WIN10_RS2)
+  window->ResizeStarted += ref new TypedEventHandler<CoreWindow^, Platform::Object^>([&](CoreWindow^ wnd, Platform::Object^ args) {
+    OnWindowResizeStarted(wnd, args);
+  });
+  window->ResizeCompleted += ref new TypedEventHandler<CoreWindow^, Platform::Object^>([&](CoreWindow^ wnd, Platform::Object^ args) {
+    OnWindowResizeCompleted(wnd, args);
+  });
+#endif
   window->Closed += ref new TypedEventHandler<CoreWindow^, CoreWindowEventArgs^>([&](CoreWindow^ wnd, CoreWindowEventArgs^ args) {
     OnWindowClosed(wnd, args);
   });
@@ -134,6 +146,15 @@ void CWinEventsWin10::InitEventHandlers(CoreWindow^ window)
   // system
   SystemNavigationManager^ sysNavManager = SystemNavigationManager::GetForCurrentView();
   sysNavManager->BackRequested += ref new EventHandler<BackRequestedEventArgs^>(CWinEventsWin10::OnBackRequested);
+
+  auto hdmiInfo = HdmiDisplayInformation::GetForCurrentView();
+  if (hdmiInfo != nullptr)
+  {
+    hdmiInfo->DisplayModesChanged += ref new TypedEventHandler<HdmiDisplayInformation^,Platform::Object^>([](HdmiDisplayInformation^ i, Platform::Object^ e)
+    {
+      CLog::Log(LOGDEBUG, __FUNCTION__": >>> display modes changed");
+    });
+  }
 }
 
 void CWinEventsWin10::UpdateWindowSize()
@@ -161,7 +182,33 @@ void CWinEventsWin10::UpdateWindowSize()
 // Window event handlers.
 void CWinEventsWin10::OnWindowSizeChanged(CoreWindow^ sender, WindowSizeChangedEventArgs^ args)
 {
-  DX::Windowing().OnResize(args->Size.Width, args->Size.Height);
+  CLog::Log(LOGDEBUG, __FUNCTION__": window size changed.");
+  m_logicalWidth = args->Size.Width;
+  m_logicalHeight = args->Size.Height;
+
+  if (m_sizeChanging)
+    return;
+
+  HandleWindowSizeChanged();
+}
+
+void CWinEventsWin10::OnWindowResizeStarted(Windows::UI::Core::CoreWindow ^ sender, Platform::Object ^ args)
+{
+  CLog::Log(LOGDEBUG, __FUNCTION__": window resize started.");
+  m_sizeChanging = true;
+}
+
+void CWinEventsWin10::OnWindowResizeCompleted(Windows::UI::Core::CoreWindow ^ sender, Platform::Object ^ args)
+{
+  CLog::Log(LOGDEBUG, __FUNCTION__": window resize completed.");
+  m_sizeChanging = false;
+  HandleWindowSizeChanged();
+}
+
+void CWinEventsWin10::HandleWindowSizeChanged()
+{
+  CLog::Log(LOGDEBUG, __FUNCTION__": window size handled.");
+  DX::Windowing().OnResize(m_logicalWidth, m_logicalHeight);
   UpdateWindowSize();
 }
 
@@ -453,7 +500,7 @@ void CWinEventsWin10::OnOrientationChanged(DisplayInformation^ sender, Platform:
 
 void CWinEventsWin10::OnDisplayContentsInvalidated(DisplayInformation^ sender, Platform::Object^ args)
 {
-  //critical_section::scoped_lock lock(m_deviceResources->GetCriticalSection());
+  CLog::Log(LOGDEBUG, __FUNCTION__": onevent.");
   DX::DeviceResources::Get()->ValidateDevice();
 }
 

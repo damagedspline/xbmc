@@ -39,6 +39,8 @@ public:
 
   // Window event handlers.
   void OnWindowSizeChanged(Windows::UI::Core::CoreWindow^ sender, Windows::UI::Core::WindowSizeChangedEventArgs^ args);
+  void OnWindowResizeStarted(Windows::UI::Core::CoreWindow^ sender, Platform::Object^ args);
+  void OnWindowResizeCompleted(Windows::UI::Core::CoreWindow^ sender, Platform::Object^ args);
   void OnWindowClosed(Windows::UI::Core::CoreWindow^ sender, Windows::UI::Core::CoreWindowEventArgs^ args);
   static void OnWindowActivationChanged(Windows::UI::Core::CoreWindow^ sender, Windows::UI::Core::WindowActivatedEventArgs^ args);
   static void OnVisibilityChanged(Windows::UI::Core::CoreWindow^ sender, Windows::UI::Core::VisibilityChangedEventArgs^ args);
@@ -59,9 +61,16 @@ public:
   static void OnBackRequested(Platform::Object^ sender, Windows::UI::Core::BackRequestedEventArgs^ args);
 
 private:
+  friend class CWinSystemWin10;
+
   void UpdateWindowSize();
   void Kodi_KeyEvent(unsigned int vkey, unsigned scancode, unsigned keycode, bool isDown);
+  void HandleWindowSizeChanged();
+
   Concurrency::concurrent_queue<XBMC_Event> m_events;
+  bool m_sizeChanging{ false };
+  float m_logicalWidth{ 0 };
+  float m_logicalHeight{ 0 };
 };
 
 #endif // WINDOW_EVENTS_WIN10_H
