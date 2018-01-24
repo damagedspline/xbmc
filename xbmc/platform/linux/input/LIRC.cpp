@@ -37,6 +37,16 @@
 #include "threads/SingleLock.h"
 #include "ServiceBroker.h"
 
+IRemoteControl* CRemoteControl::CreateInstance()
+{
+  return new CRemoteControl();
+}
+
+void CRemoteControl::Register()
+{
+  CInputManager::RegisterRemoteControl(CRemoteControl::CreateInstance);
+}
+
 CRemoteControl::CRemoteControl()
   : CThread("RemoteControl")
   , m_fd(-1)
@@ -170,7 +180,7 @@ void CRemoteControl::Process()
   }
 }
 
-bool CRemoteControl::CheckDevice() {
+bool CRemoteControl::CheckDevice() const {
   if (!m_bInitialized || !m_used)
     return false;
 
@@ -305,7 +315,7 @@ void CRemoteControl::Update()
   }
 }
 
-WORD CRemoteControl::GetButton()
+unsigned short CRemoteControl::GetButton() const
 {
   return m_button;
 }
@@ -326,7 +336,7 @@ void CRemoteControl::AddSendCommand(const std::string& command)
   m_sendData += '\n';
 }
 
-bool CRemoteControl::Connect(struct sockaddr_un addr, bool logMessages)
+bool CRemoteControl::Connect(struct sockaddr_un addr, bool logMessages) const
 {
   bool bResult = false;
   // Open the socket from which we will receive the remote commands

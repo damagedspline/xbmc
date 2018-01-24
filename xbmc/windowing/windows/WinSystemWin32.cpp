@@ -37,6 +37,9 @@
 #include "utils/CharsetConverter.h"
 #include "utils/SystemInfo.h"
 #include "VideoSyncD3D.h"
+#ifdef HAS_IRSERVERSUITE
+#include "platform/win32/input/IRServerSuite.h"
+#endif
 
 #include <tpcshrd.h>
 #include "guilib/GraphicContext.h"
@@ -66,6 +69,9 @@ CWinSystemWin32::CWinSystemWin32()
   AE::CAESinkFactory::ClearSinks();
   CAESinkDirectSound::Register();
   CAESinkWASAPI::Register();
+#ifdef HAS_IRSERVERSUITE
+  CRemoteControl::Register();
+#endif
 }
 
 CWinSystemWin32::~CWinSystemWin32()

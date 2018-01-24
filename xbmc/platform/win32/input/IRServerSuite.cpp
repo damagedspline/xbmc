@@ -27,6 +27,16 @@
 
 #define IRSS_PORT 24000
 
+IRemoteControl* CRemoteControl::CreateInstance()
+{
+  return new CRemoteControl();
+}
+
+void CRemoteControl::Register()
+{
+  CInputManager::RegisterRemoteControl(CRemoteControl::CreateInstance);
+}
+
 CRemoteControl::CRemoteControl()
   : CThread("RemoteControl")
   , m_button(0)
@@ -471,7 +481,7 @@ bool CRemoteControl::ReadPacket(CIrssMessage &message)
   }
 }
 
-WORD CRemoteControl::GetButton()
+unsigned short CRemoteControl::GetButton() const
 {
   return m_button;
 }

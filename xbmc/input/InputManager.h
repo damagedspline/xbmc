@@ -24,19 +24,13 @@
 #include <string>
 #include <vector>
 
-#if defined(HAS_LIRC)
-#include "platform/linux/input/LIRC.h"
-#endif
-#if defined(HAS_IRSERVERSUITE)
-#include "platform/win32/input/IRServerSuite.h"
-#endif
-
 #include "Action.h"
 #include "windowing/XBMC_events.h"
 #include "input/keyboard/interfaces/IKeyboardInputProvider.h"
 #include "input/mouse/interfaces/IMouseInputProvider.h"
 #include "input/KeyboardStat.h"
 #include "input/MouseStat.h"
+#include "input/remote/IRemoteControl.h"
 #include "interfaces/IActionListener.h"
 #include "settings/lib/ISettingCallback.h"
 #include "threads/CriticalSection.h"
@@ -67,6 +61,7 @@ namespace MOUSE
 }
 }
 
+using CreateRemoteControlFunc = IRemoteControl* (*)();
 /// \addtogroup input
 /// \{
 
@@ -293,6 +288,7 @@ public:
   virtual std::string RegisterMouseHandler(KODI::MOUSE::IMouseInputHandler* handler) override;
   virtual void UnregisterMouseHandler(KODI::MOUSE::IMouseInputHandler* handler) override;
 
+  static void RegisterRemoteControl(CreateRemoteControlFunc createFunc);
 private:
 
   /*! \brief Process keyboard event and translate into an action
@@ -347,10 +343,6 @@ private:
   CMouseStat m_Mouse;
   CKey m_LastKey;
 
-#if defined(HAS_LIRC) || defined(HAS_IRSERVERSUITE)
-  CRemoteControl m_RemoteControl;
-#endif
-
   std::map<std::string, std::map<int, float> > m_lastAxisMap;
 
   std::vector<CAction> m_queuedActions;
@@ -363,6 +355,7 @@ private:
   std::unique_ptr<CCustomControllerTranslator> m_customControllerTranslator;
   std::unique_ptr<CTouchTranslator> m_touchTranslator;
   std::unique_ptr<CJoystickMapper> m_joystickTranslator;
+  std::unique_ptr<IRemoteControl> m_RemoteControl;
 
   std::vector<KODI::KEYBOARD::IKeyboardHandler*> m_keyboardHandlers;
 
@@ -376,6 +369,7 @@ private:
   std::unique_ptr<KODI::MOUSE::IMouseButtonMap> m_mouseButtonMap;
 
   std::unique_ptr<KODI::KEYBOARD::IKeyboardHandler> m_keyboardEasterEgg;
+  static CreateRemoteControlFunc m_createRemoteControl;
 };
 
 /// \}

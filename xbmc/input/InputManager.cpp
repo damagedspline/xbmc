@@ -40,17 +40,7 @@
 #include "guilib/GUIWindow.h"
 #include "guilib/GUIWindowManager.h"
 #include "guilib/GUIMessage.h"
-
 #include "network/EventServer.h"
-
-#ifdef HAS_LIRC
-#include "platform/linux/input/LIRC.h"
-#endif
-
-#ifdef HAS_IRSERVERSUITE
-#include "platform/win32/input/IRServerSuite.h"
-#endif
-
 #include "ButtonTranslator.h"
 #include "peripherals/Peripherals.h"
 #include "peripherals/devices/PeripheralImon.h"
@@ -69,6 +59,8 @@ using EVENTSERVER::CEventServer;
 using namespace KODI;
 using namespace MESSAGING;
 
+CreateRemoteControlFunc CInputManager::m_createRemoteControl = nullptr;
+
 CInputManager::CInputManager(const CAppParamParser &params) :
   m_keymapEnvironment(new CKeymapEnvironment),
   m_buttonTranslator(new CButtonTranslator),
@@ -84,6 +76,9 @@ CInputManager::CInputManager(const CAppParamParser &params) :
   m_buttonTranslator->RegisterMapper("joystick", m_joystickTranslator.get());
 
   RegisterKeyboardHandler(m_keyboardEasterEgg.get());
+
+  if (m_createRemoteControl)
+    m_RemoteControl.reset(m_createRemoteControl());
 
   if (!params.RemoteControlName().empty())
     SetRemoteControlName(params.RemoteControlName());
@@ -101,6 +96,8 @@ CInputManager::~CInputManager()
 {
   Deinitialize();
 
+  m_RemoteControl.reset();
+
   // Unregister settings
   CServiceBroker::GetSettings().UnregisterCallback(this);
 
@@ -113,10 +110,6 @@ CInputManager::~CInputManager()
 
 void CInputManager::InitializeInputs()
 {
-#if defined(HAS_LIRC) || defined(HAS_IRSERVERSUITE)
-  m_RemoteControl.Initialize();
-#endif
-
   m_Keyboard.Initialize();
 
   m_Mouse.Initialize();
@@ -125,21 +118,22 @@ void CInputManager::InitializeInputs()
 
 void CInputManager::Deinitialize()
 {
-#if defined(HAS_LIRC) || defined(HAS_IRSERVERSUITE)
-  m_RemoteControl.Disconnect();
-#endif
+  if (m_RemoteControl)
+    m_RemoteControl->Disconnect();
 }
 
 bool CInputManager::ProcessRemote(int windowId)
 {
-#if defined(HAS_LIRC) || defined(HAS_IRSERVERSUITE)
-  if (m_RemoteControl.GetButton())
+  if (!m_RemoteControl)
+    return;
+
+  m_RemoteControl->Update();
+  if (m_RemoteControl->GetButton())
   {
-    CKey key(m_RemoteControl.GetButton(), m_RemoteControl.GetHoldTime());
-    m_RemoteControl.Reset();
+    CKey key(m_RemoteControl->GetButton(), m_RemoteControl->GetHoldTime());
+    m_RemoteControl->Reset();
     return OnKey(key);
   }
-#endif
   return false;
 }
 
@@ -357,11 +351,6 @@ void CInputManager::QueueAction(const CAction& action)
 
 bool CInputManager::Process(int windowId, float frameTime)
 {
-#if defined(HAS_LIRC) || defined(HAS_IRSERVERSUITE)
-  // Read the input from a remote
-  m_RemoteControl.Update();
-#endif
-
   // process input actions
   ProcessRemote(windowId);
   ProcessEventServer(windowId, frameTime);
@@ -744,31 +733,32 @@ bool CInputManager::HasBuiltin(const std::string& command)
 
 int CInputManager::ExecuteBuiltin(const std::string& execute, const std::vector<std::string>& params)
 {
-#if defined(HAS_LIRC) || defined(HAS_IRSERVERSUITE)
-  if (execute == "lirc.stop")
+  if (m_RemoteControl)
   {
-    m_RemoteControl.Disconnect();
-    m_RemoteControl.SetEnabled(false);
-  }
-  else if (execute == "lirc.start")
-  {
-    m_RemoteControl.SetEnabled(true);
-    m_RemoteControl.Initialize();
-  }
-  else if (execute == "lirc.send")
-  {
-    std::string command;
-    for (int i = 0; i < (int)params.size(); i++)
+    if (execute == "lirc.stop")
     {
-      command += params[i];
-      if (i < (int)params.size() - 1)
-        command += ' ';
+      m_RemoteControl->Disconnect();
+      m_RemoteControl->SetEnabled(false);
     }
-    m_RemoteControl.AddSendCommand(command);
+    else if (execute == "lirc.start")
+    {
+      m_RemoteControl->SetEnabled(true);
+      m_RemoteControl->Initialize();
+    }
+    else if (execute == "lirc.send")
+    {
+      std::string command;
+      for (int i = 0; i < (int)params.size(); i++)
+      {
+        command += params[i];
+        if (i < (int)params.size() - 1)
+          command += ' ';
+      }
+      m_RemoteControl->AddSendCommand(command);
+    }
+    else
+      return -1;
   }
-  else
-    return -1;
-#endif
   return 0;
 }
 
@@ -809,54 +799,45 @@ void CInputManager::SetMouseState(MOUSE_STATE mouseState)
 
 bool CInputManager::IsRemoteControlEnabled()
 {
-#if defined(HAS_LIRC) || defined(HAS_IRSERVERSUITE)
-  return m_RemoteControl.IsInUse();
-#else
-  return false;
-#endif
+  return m_RemoteControl && m_RemoteControl->IsInUse();
 }
 
 bool CInputManager::IsRemoteControlInitialized()
 {
-#if defined(HAS_LIRC) || defined(HAS_IRSERVERSUITE)
-  return m_RemoteControl.IsInitialized();
-#else
-  return false;
-#endif
+  return m_RemoteControl && m_RemoteControl->IsInitialized();
 }
 
 void CInputManager::EnableRemoteControl()
 {
-#if defined(HAS_LIRC) || defined(HAS_IRSERVERSUITE)
-  m_RemoteControl.SetEnabled(true);
-  if (!m_RemoteControl.IsInitialized())
+  if (!m_RemoteControl)
+    return;
+
+  m_RemoteControl->SetEnabled(true);
+  if (!m_RemoteControl->IsInitialized())
   {
-    m_RemoteControl.Initialize();
+    m_RemoteControl->Initialize();
   }
-#endif
 }
 
 void CInputManager::DisableRemoteControl()
 {
-#if defined(HAS_LIRC) || defined(HAS_IRSERVERSUITE)
-  m_RemoteControl.Disconnect();
-  m_RemoteControl.SetEnabled(false);
-#endif
+  if (m_RemoteControl)
+  {
+    m_RemoteControl->Disconnect();
+    m_RemoteControl->SetEnabled(false);
+  }
 }
 
 void CInputManager::InitializeRemoteControl()
 {
-#if defined(HAS_LIRC) || defined(HAS_IRSERVERSUITE)
-  if (!m_RemoteControl.IsInitialized())
-    m_RemoteControl.Initialize();
-#endif
+  if (m_RemoteControl && !m_RemoteControl->IsInitialized())
+    m_RemoteControl->Initialize();
 }
 
 void CInputManager::SetRemoteControlName(const std::string& name)
 {
-#if defined(HAS_LIRC) || defined(HAS_IRSERVERSUITE)
-  m_RemoteControl.SetDeviceName(name);
-#endif
+  if (m_RemoteControl)
+    m_RemoteControl->SetDeviceName(name);
 }
 
 void CInputManager::OnSettingChanged(std::shared_ptr<const CSetting> setting)
@@ -1029,4 +1010,9 @@ void CInputManager::UnregisterMouseHandler(MOUSE::IMouseInputHandler* handler)
     {
       return handle.inputHandler == handler;
     }), m_mouseHandlers.end());
+}
+
+void CInputManager::RegisterRemoteControl(CreateRemoteControlFunc createFunc)
+{
+  m_createRemoteControl = createFunc;
 }
