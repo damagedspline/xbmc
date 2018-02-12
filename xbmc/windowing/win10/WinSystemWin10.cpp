@@ -25,6 +25,7 @@
 #include "guilib/gui3d.h"
 #include "guilib/GraphicContext.h"
 #include "messaging/ApplicationMessenger.h"
+#include "platform/win10/input/RemoteControlXbox.h"
 #include "platform/win32/CharsetConverter.h"
 #include "powermanagement/win10/Win10PowerSyscall.h"
 #include "rendering/dx/DirectXHelper.h"
@@ -64,6 +65,10 @@ CWinSystemWin10::CWinSystemWin10()
   if (CSysInfo::GetWindowsDeviceFamily() == CSysInfo::WindowsDeviceFamily::Desktop)
   {
     CAESinkWASAPI::Register();
+  }
+  else if (CSysInfo::GetWindowsDeviceFamily() == CSysInfo::WindowsDeviceFamily::Xbox)
+  {
+    CRemoteControlXbox::Register();
   }
   CPowerSyscall::Register();
 }

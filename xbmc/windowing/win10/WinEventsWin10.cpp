@@ -26,6 +26,7 @@
 #include "input/Action.h"
 #include "input/ActionIDs.h"
 #include "messaging/ApplicationMessenger.h"
+#include "platform/win10/input/RemoteControlXbox.h"
 #include "rendering/dx/DeviceResources.h"
 #include "rendering/dx/RenderContext.h"
 #include "utils/log.h"
@@ -136,16 +137,20 @@ void CWinEventsWin10::InitEventHandlers(CoreWindow^ window)
   // system
   SystemNavigationManager^ sysNavManager = SystemNavigationManager::GetForCurrentView();
   sysNavManager->BackRequested += ref new EventHandler<BackRequestedEventArgs^>(CWinEventsWin10::OnBackRequested);
-  // requirement for backgroup playback
-  m_smtc = SystemMediaTransportControls::GetForCurrentView();
-  if (m_smtc)
+
+  if (CSysInfo::GetWindowsDeviceFamily() != CSysInfo::WindowsDeviceFamily::Xbox)
   {
-    m_smtc->IsPlayEnabled = true;
-    m_smtc->IsPauseEnabled = true;
-    m_smtc->IsStopEnabled = true;
-    m_smtc->ButtonPressed += ref new TypedEventHandler<SystemMediaTransportControls^, SystemMediaTransportControlsButtonPressedEventArgs^>
-      (CWinEventsWin10::OnSystemMediaButtonPressed);
-    m_smtc->IsEnabled = true;
+    // requirement for backgroup playback
+    m_smtc = SystemMediaTransportControls::GetForCurrentView();
+    if (m_smtc)
+    {
+      m_smtc->IsPlayEnabled = true;
+      m_smtc->IsPauseEnabled = true;
+      m_smtc->IsStopEnabled = true;
+      m_smtc->ButtonPressed += ref new TypedEventHandler<SystemMediaTransportControls^, SystemMediaTransportControlsButtonPressedEventArgs^>
+        (CWinEventsWin10::OnSystemMediaButtonPressed);
+      m_smtc->IsEnabled = true;
+    }
   }
 }
 
@@ -383,6 +388,10 @@ void CWinEventsWin10::OnAcceleratorKeyActivated(CoreDispatcher^ sender, Accelera
   static auto lockedState = CoreVirtualKeyStates::Locked;
   static VirtualKey keyStore = VirtualKey::None;
 
+  if ( CSysInfo::GetWindowsDeviceFamily() == CSysInfo::WindowsDeviceFamily::Xbox 
+    && CRemoteControlXbox::IsRemoteControlId(args->DeviceId->Data()))
+    return;
+
   bool isDown = false;
   unsigned keyCode = 0;
   unsigned vk = static_cast<unsigned>(args->VirtualKey);
@@ -473,7 +482,7 @@ void CWinEventsWin10::OnDisplayContentsInvalidated(DisplayInformation^ sender, P
 void CWinEventsWin10::OnBackRequested(Platform::Object^ sender, Windows::UI::Core::BackRequestedEventArgs^ args)
 {
   // handle this only on windows mobile
-  if (CSysInfo::GetWindowsDeviceFamily() == CSysInfo::Mobile)
+  if (CSysInfo::GetWindowsDeviceFamily() == CSysInfo::WindowsDeviceFamily::Mobile)
   {
     CApplicationMessenger::GetInstance().PostMsg(TMSG_GUI_ACTION, WINDOW_INVALID, -1, static_cast<void*>(new CAction(ACTION_NAV_BACK)));
   }
