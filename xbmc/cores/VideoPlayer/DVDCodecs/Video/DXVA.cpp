@@ -922,7 +922,7 @@ static bool HasXbox4kHevcMain10Bug(AVCodecContext *avctx)
   if (avctx->height <= 1080 || avctx->width <= 1920)
     return false;
 
-  return true;
+  return false;
 }
 
 static bool CheckCompatibility(AVCodecContext *avctx)
