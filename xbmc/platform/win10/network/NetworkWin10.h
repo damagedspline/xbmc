@@ -23,16 +23,17 @@
 #include "utils/stopwatch.h"
 #include "threads/CriticalSection.h"
 
+#include <IPTypes.h>
 #include <string>
 #include <vector>
 
 class CNetworkWin10;
 
-
 class CNetworkInterfaceWin10 : public CNetworkInterface
 {
 public:
   CNetworkInterfaceWin10(CNetworkWin10* network, Windows::Networking::Connectivity::ConnectionProfile^ profile);
+  CNetworkInterfaceWin10(CNetworkWin10* network, const PIP_ADAPTER_ADDRESSES adapter);
   ~CNetworkInterfaceWin10(void);
 
   virtual std::string& GetName(void);
@@ -59,8 +60,11 @@ public:
 
 private:
   CNetworkWin10* m_network;
+
   std::string m_adaptername;
   Windows::Networking::Connectivity::ConnectionProfile^ m_adapter;
+
+  PIP_ADAPTER_ADDRESSES m_adapterAddr;
 };
 
 
@@ -86,8 +90,10 @@ private:
     int GetSocket() { return m_sock; }
     void queryInterfaceList();
     void CleanInterfaceList();
+
     std::vector<CNetworkInterface*> m_interfaces;
     int m_sock;
     CStopWatch m_netrefreshTimer;
     CCriticalSection m_critSection;
+    PIP_ADAPTER_ADDRESSES m_adapterAddresses;
 };

@@ -446,7 +446,7 @@ void CNetworkInterfaceWin32::GetSettings(NetworkAssignment& assignment, std::str
           assignment = NETWORK_DHCP;
         else
           assignment = NETWORK_STATIC;
-
+        break;
       }
       adapter = adapter->Next;
     }
