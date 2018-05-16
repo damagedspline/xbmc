@@ -21,6 +21,7 @@
 
 #include "filesystem/IFile.h"
 #include <winrt/Windows.Storage.AccessCache.h>
+#include <future>
 
 namespace XFILE
 {
@@ -30,24 +31,24 @@ namespace XFILE
     CWinLibraryFile();
     virtual ~CWinLibraryFile(void);
 
-    virtual bool Open(const CURL& url);
-    virtual bool OpenForWrite(const CURL& url, bool bOverWrite = false);
-    virtual void Close();
+    bool Open(const CURL& url) override;
+    bool OpenForWrite(const CURL& url, bool bOverWrite = false) override;
+    void Close() override;
 
-    virtual ssize_t Read(void* lpBuf, size_t uiBufSize);
-    virtual ssize_t Write(const void* lpBuf, size_t uiBufSize);
-    virtual int64_t Seek(int64_t iFilePosition, int iWhence = SEEK_SET);
-    virtual int Truncate(int64_t toSize);
-    virtual int64_t GetPosition();
-    virtual int64_t GetLength();
-    virtual void Flush();
+    ssize_t Read(void* lpBuf, size_t uiBufSize) override;
+    ssize_t Write(const void* lpBuf, size_t uiBufSize) override;
+    int64_t Seek(int64_t iFilePosition, int iWhence = SEEK_SET) override;
+    int Truncate(int64_t toSize) override;
+    int64_t GetPosition() override;
+    int64_t GetLength() override;
+    void Flush() override;
 
-    virtual bool Delete(const CURL& url);
-    virtual bool Rename(const CURL& urlCurrentName, const CURL& urlNewName);
-    virtual bool SetHidden(const CURL& url, bool hidden);
-    virtual bool Exists(const CURL& url);
-    virtual int Stat(const CURL& url, struct __stat64* statData);
-    virtual int Stat(struct __stat64* statData);
+    bool Delete(const CURL& url) override;
+    bool Rename(const CURL& urlCurrentName, const CURL& urlNewName) override;
+    bool SetHidden(const CURL& url, bool hidden) override;
+    bool Exists(const CURL& url) override;
+    int Stat(const CURL& url, struct __stat64* statData) override;
+    int Stat(struct __stat64* statData) override;
 
     static IFile* Get(const CURL& url);
     static bool IsValid(const CURL& url);
@@ -55,11 +56,17 @@ namespace XFILE
     static bool IsInAccessList(const CURL& url);
 
   private:
-    bool OpenIntenal(const CURL& url, winrt::Windows::Storage::FileAccessMode mode);
-    winrt::Windows::Storage::StorageFile GetFile(const CURL& url);
+    template <typename T> using IAsync = winrt::Windows::Foundation::IAsyncOperation<T>;
+
+    IAsync<winrt::Windows::Storage::StorageFile> GetFile(const CURL& url);
+    std::future<bool> OpenAsync(const CURL& url, winrt::Windows::Storage::FileAccessMode mode);
+    std::future<bool> RenameAsync(const CURL& urlCurrentName, const CURL& urlNewName);
+    std::future<bool> DeleteAsync(const CURL& url);
+    std::future<int> StatAsync(const CURL& url, struct __stat64* statData);
+    std::future<int> StatAsync(const winrt::Windows::Storage::StorageFile& file, struct __stat64* statData);
+
     static bool IsInList(const CURL& url, const winrt::Windows::Storage::AccessCache::IStorageItemAccessList& list);
     static winrt::hstring GetTokenFromList(const CURL& url, const winrt::Windows::Storage::AccessCache::IStorageItemAccessList& list);
-    static int Stat(const winrt::Windows::Storage::StorageFile& file, struct __stat64* statData);
 
     bool m_allowWrite = false;
     winrt::Windows::Storage::StorageFile m_sFile = nullptr;
