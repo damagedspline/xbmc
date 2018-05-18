@@ -1,4 +1,3 @@
-#pragma once
 /*
  *      Copyright (C) 2005-2017 Team Kodi
  *      http://kodi.tv
@@ -18,11 +17,9 @@
  *  <http://www.gnu.org/licenses/>.
  *
  */
+#pragma once
 
 #include "utils/CharsetConverter.h" // Required to initialize converters before usage
-#include "rendering/dx/DeviceResources.h"
-
-struct XBMC_keysym;
 
 namespace KODI
 {

@@ -23,12 +23,10 @@
 
 #include "Application.h"
 #include "AppParamParser.h"
-#include "platform/Environment.h"
 #include "platform/xbmc.h"
 #include "platform/win32/CharsetConverter.h"
 #include "rendering/dx/RenderContext.h"
 #include "settings/AdvancedSettings.h"
-#include "utils/log.h"
 #include "utils/SystemInfo.h"
 #include "windowing/win10/WinEventsWin10.h"
 
@@ -159,7 +157,7 @@ void App::OnActivated(const CoreApplicationView& applicationView, const IActivat
     if (fileArgs && fileArgs.Files() && fileArgs.Files().Size() > 0)
     {
       using KODI::PLATFORM::WINDOWS::FromW;
-      for (auto file : fileArgs.Files())
+      for (auto && file : fileArgs.Files())
       {
         if (!StorageApplicationPermissions::FutureAccessList().CheckAccess(file))
         {
