@@ -98,7 +98,7 @@ void CStorageProvider::GetRemovableDrives(VECSOURCES &removableDrives)
   
   try
   {
-    auto devicesView = Wait(winrt::Windows::Storage::KnownFolders::RemovableDevices().GetFoldersAsync());
+    auto devicesView = winrt::wait(winrt::Windows::Storage::KnownFolders::RemovableDevices().GetFoldersAsync());
     for (unsigned i = 0; i < devicesView.Size(); i++)
     {
       CMediaSource source;

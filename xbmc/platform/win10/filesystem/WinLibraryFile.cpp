@@ -50,8 +50,6 @@ using namespace winrt::Windows::Storage::AccessCache;
 using namespace winrt::Windows::Storage::Search;
 using namespace winrt::Windows::Storage::Streams;
 
-#define WINRT_STA_ASYNC_GUARD { if (winrt::impl::is_sta()) co_await winrt::resume_background(); }
-
 struct __declspec(uuid("905a0fef-bc53-11df-8c49-001e4fc686da")) IBufferByteAccess : ::IUnknown
 {
   virtual HRESULT __stdcall Buffer(void** value) = 0;
@@ -112,7 +110,7 @@ ssize_t CWinLibraryFile::Read(void* lpBuf, size_t uiBufSize)
     return -1;
 
   IBuffer buf = winrt::make<CustomBuffer>(lpBuf, static_cast<uint32_t>(uiBufSize));
-  Wait(m_fileStream.ReadAsync(buf, buf.Capacity(), InputStreamOptions::None));
+  winrt::wait(m_fileStream.ReadAsync(buf, buf.Capacity(), InputStreamOptions::None));
 
   return static_cast<intptr_t>(buf.Length());
 }
@@ -125,7 +123,7 @@ ssize_t CWinLibraryFile::Write(const void* lpBuf, size_t uiBufSize)
   const uint8_t* buff = static_cast<const uint8_t*>(lpBuf);
   auto winrt_buffer = CryptographicBuffer::CreateFromByteArray({ buff, buff + uiBufSize });
 
-  uint32_t result = Wait(m_fileStream.WriteAsync(winrt_buffer));
+  uint32_t result = winrt::wait(m_fileStream.WriteAsync(winrt_buffer));
   return static_cast<intptr_t>(result);
 }
 
@@ -201,7 +199,7 @@ bool CWinLibraryFile::SetHidden(const CURL& url, bool hidden)
 
 bool CWinLibraryFile::Exists(const CURL& url)
 {
-  return Wait(GetFile(url)) != nullptr;
+  return winrt::wait(GetFile(url)) != nullptr;
 }
 
 int CWinLibraryFile::Stat(const CURL& url, struct __stat64* statData)

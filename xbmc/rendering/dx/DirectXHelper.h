@@ -19,7 +19,6 @@
  */
 #pragma once
 
-#include <ppltasks.h>	// For create_task
 #include "commons/Exception.h"
 #include "dxerr.h"
 #include "platform/win32/CharsetConverter.h"

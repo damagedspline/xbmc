@@ -30,7 +30,6 @@
 
 #include <errno.h>
 #include <iphlpapi.h>
-#include <ppltasks.h>
 #include <string.h>
 #include <Ws2tcpip.h>
 #include <ws2ipdef.h>
@@ -302,7 +301,7 @@ std::string CNetworkInterfaceWin10::GetCurrentWirelessEssId(void)
 
   if (IsConnected() && !m_profile)
   {
-    m_profile = Wait(m_winRT.GetConnectedProfileAsync());
+    m_profile = winrt::wait(m_winRT.GetConnectedProfileAsync());
   }
 
   if (!m_profile)

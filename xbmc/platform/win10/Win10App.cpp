@@ -32,7 +32,7 @@
 #include "utils/SystemInfo.h"
 #include "windowing/win10/WinEventsWin10.h"
 
-#include <ppltasks.h>
+#include <thread>
 #include <winrt/Windows.Storage.AccessCache.h>
 
 using namespace KODI::PLATFORM::WINDOWS10;
@@ -180,13 +180,12 @@ void App::OnSuspending(const winrt::IInspectable&, const SuspendingEventArgs& ar
   // aware that a deferral may not be held indefinitely. After about five seconds,
   // the app will be forced to exit.
   SuspendingDeferral deferral = args.SuspendingOperation().GetDeferral();
-
-  Concurrency::create_task([this, deferral]()
+  std::thread([d = std::move(deferral)]()
   {
     DX::Windowing()->TrimDevice();
     // Insert your code here.
-    deferral.Complete();
-  });
+    d.Complete();
+  }).detach();
 }
 
 void App::OnResuming(const winrt::IInspectable&, const winrt::IInspectable&)

@@ -19,85 +19,35 @@
  */
 #pragma once
 
-#ifdef TARGET_WINDOWS_STORE
-
-#include <ppl.h>
-#include <ppltasks.h>
+#define WINRT_STA_ASYNC_GUARD { if (winrt::impl::is_sta()) co_await winrt::resume_background(); }
 
 namespace winrt
 {
-  using namespace Windows::Foundation;
-}
+using namespace Windows::Foundation;
 
-inline void Wait(const winrt::IAsyncAction& asyncOp)
+template <typename T> inline
+auto wait(const T& async)
 {
-  if (asyncOp.Status() == winrt::AsyncStatus::Completed)
-    return;
+  if (async.Status() == winrt::AsyncStatus::Completed)
+    return async.GetResults();
 
-  if (!winrt::impl::is_sta())
-    return asyncOp.get();
+  impl::mutex m;
+  impl::condition_variable cv;
+  bool completed = false;
 
-  auto __sync = std::make_shared<Concurrency::event>();
-  asyncOp.Completed([&](auto&&, auto&&) {
-    __sync->set();
-  });
-  __sync->wait();
-}
-
-template <typename TResult, typename TProgress> inline
-TResult Wait(const winrt::IAsyncOperationWithProgress<TResult, TProgress>& asyncOp)
-{
-  if (asyncOp.Status() == winrt::AsyncStatus::Completed)
-    return asyncOp.GetResults();
-
-  if (!winrt::impl::is_sta())
-    return asyncOp.get();
-
-  auto __sync = std::make_shared<Concurrency::event>();
-  asyncOp.Completed([&](auto&&, auto&&) {
-    __sync->set();
-  });
-  __sync->wait();
-
-  return asyncOp.GetResults();
-}
-
-template <typename TResult> inline
-TResult Wait(const winrt::IAsyncOperation<TResult>& asyncOp)
-{
-  if (asyncOp.Status() == winrt::AsyncStatus::Completed)
-    return asyncOp.GetResults();
-
-  if (!winrt::impl::is_sta())
-    return asyncOp.get();
-
-  auto __sync = std::make_shared<Concurrency::event>();
-  asyncOp.Completed([&](auto&&, auto&&)
+  async.Completed([&](auto&&, auto&&)
   {
-    __sync->set();
+    {
+      impl::lock_guard<> const guard(m);
+      completed = true;
+    }
+
+    cv.notify_one();
   });
-  __sync->wait();
 
-  return asyncOp.GetResults();
+  impl::lock_guard<> guard(m);
+  cv.wait(m, [&] { return completed; });
+
+  return async.GetResults();
 }
-
-template <typename TResult> inline
-TResult Wait(const Concurrency::task<TResult>& asyncOp)
-{
-  if (asyncOp.is_done())
-    return asyncOp.get();
-
-  if (!winrt::impl::is_sta()) // blocking suspend is allowed
-    return asyncOp.get();
-
-  auto _sync = std::make_shared<Concurrency::event>();
-  asyncOp.then([&](TResult result)
-  {
-    _sync->set();
-  });
-  _sync->wait();
-
-  return asyncOp.get();
 }
-
-#endif

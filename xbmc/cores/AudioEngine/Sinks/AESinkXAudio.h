@@ -24,7 +24,6 @@
 #include "cores/AudioEngine/Interfaces/AESink.h"
 #include "cores/AudioEngine/Utils/AEDeviceInfo.h"
 #include <wrl/implements.h>
-#include <ppltasks.h>
 
 #include <xaudio2.h>
 #include <xaudio2fx.h>

@@ -44,7 +44,6 @@
 #pragma pack(push,8)
 
 #include <tpcshrd.h>
-#include <ppltasks.h>
 #include <winrt/Windows.ApplicationModel.DataTransfer.h>
 #include <winrt/Windows.Foundation.Metadata.h>
 #include <winrt/Windows.Graphics.Display.h>
@@ -420,7 +419,7 @@ bool CWinSystemWin10::ChangeResolution(const RESOLUTION_INFO& res, bool forceCha
       if (res.iScreenWidth == details->ScreenWidth && res.iScreenHeight == details->ScreenHeight
         && fabs(res.fRefreshRate - details->RefreshRate) <= 0.00001)
       {
-        Wait(hdmiInfo.SetDefaultDisplayModeAsync());
+        winrt::wait(hdmiInfo.SetDefaultDisplayModeAsync());
         changed = true;
       }
       else
@@ -442,7 +441,7 @@ bool CWinSystemWin10::ChangeResolution(const RESOLUTION_INFO& res, bool forceCha
 
         if (selected != nullptr)
         {
-          changed = Wait(hdmiInfo.RequestSetCurrentDisplayModeAsync(selected));
+          changed = winrt::wait(hdmiInfo.RequestSetCurrentDisplayModeAsync(selected));
         }
       }
     }
@@ -615,7 +614,7 @@ bool CWinSystemWin10::UpdateResolutionsInternal()
   if (dispatcher.HasThreadAccess())
     handler();
   else
-    Wait(dispatcher.RunAsync(CoreDispatcherPriority::High, handler));
+    winrt::wait(dispatcher.RunAsync(CoreDispatcherPriority::High, handler));
 
   return true;
 }
@@ -727,7 +726,7 @@ std::string CWinSystemWin10::GetClipboardText()
   auto contentView = winrt::Windows::ApplicationModel::DataTransfer::Clipboard::GetContent();
   if (contentView.Contains(winrt::Windows::ApplicationModel::DataTransfer::StandardDataFormats::Text()))
   {
-    auto text = Wait(contentView.GetTextAsync());
+    auto text = winrt::wait(contentView.GetTextAsync());
     unicode_text.append(text.c_str());
   }
 

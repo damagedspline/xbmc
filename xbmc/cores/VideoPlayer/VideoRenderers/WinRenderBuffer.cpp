@@ -18,9 +18,6 @@
  *
  */
 
-#include <ppl.h>
-#include <ppltasks.h>
-
 #include "WinRenderBuffer.h"
 #include "cores/VideoPlayer/VideoRenderers/RenderFlags.h"
 #include "cores/VideoPlayer/VideoRenderers/WinRenderer.h"
@@ -32,6 +29,9 @@
 #endif
 #include "platform/win32/utils/memcpy_sse2.h"
 #include "utils/CPUInfo.h"
+
+#include <ppl.h>
+#include <ppltasks.h>
 
 #define PLANE_Y 0
 #define PLANE_U 1

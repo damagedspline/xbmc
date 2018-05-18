@@ -108,7 +108,7 @@ bool CWinLibraryDirectory::GetDirectory(const CURL &url, CFileItemList &items)
   std::string path = url.Get();
   URIUtils::AddSlashAtEnd(path); //be sure the dir ends with a slash
 
-  auto vectorView = Wait(folder.GetItemsAsync());
+  auto vectorView = winrt::wait(folder.GetItemsAsync());
   for (unsigned i = 0; i < vectorView.Size(); i++)
   {
     IStorageItem item = vectorView.GetAt(i);
@@ -130,7 +130,7 @@ bool CWinLibraryDirectory::GetDirectory(const CURL &url, CFileItemList &items)
     if (itemName.front() == '.')
       pItem->SetProperty("file:hidden", true);
 
-    auto props = Wait(item.GetBasicPropertiesAsync());
+    auto props = winrt::wait(item.GetBasicPropertiesAsync());
 
     pItem->m_dateTime = winrt::clock::to_FILETIME(props.DateModified());
     if (!pItem->m_bIsFolder)
@@ -156,7 +156,7 @@ bool CWinLibraryDirectory::Create(const CURL& url)
   try
   {
     std::wstring wStrPath = ToW(url.GetFileNameWithoutPath());
-    Wait(folder.CreateFolderAsync(wStrPath));
+    winrt::wait(folder.CreateFolderAsync(wStrPath));
   }
   catch (const winrt::hresult_error&)
   {
@@ -179,7 +179,7 @@ bool CWinLibraryDirectory::Remove(const CURL& url)
       return false;
   try
   {
-    Wait(folder.DeleteAsync(StorageDeleteOption::PermanentDelete));
+    winrt::wait(folder.DeleteAsync(StorageDeleteOption::PermanentDelete));
     exists = true;
   }
   catch(const winrt::hresult_error& ex)
@@ -224,7 +224,7 @@ StorageFolder CWinLibraryDirectory::GetFolder(const CURL& url)
     try
     {
       std::wstring wStrPath = ToW(folderPath);
-      return Wait(rootFolder.GetFolderAsync(wStrPath));
+      return winrt::wait(rootFolder.GetFolderAsync(wStrPath));
     }
     catch (const winrt::hresult_error& ex)
     {

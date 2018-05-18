@@ -52,7 +52,6 @@ using namespace MEDIA_DETECT;
 
 #ifdef TARGET_WINDOWS_STORE
 #include "platform/win10/AsyncHelpers.h"
-#include <ppltasks.h>
 #include <winrt/Windows.Devices.Power.h>
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Storage.h>
@@ -1234,7 +1233,7 @@ bool CWIN32Util::IsUsbDevice(const std::wstring &strWdrive)
   bool result = false;
 
   auto removables = winrt::Windows::Storage::KnownFolders::RemovableDevices();
-  auto vector = Wait(removables.GetFoldersAsync());
+  auto vector = winrt::wait(removables.GetFoldersAsync());
   auto strdrive = KODI::PLATFORM::WINDOWS::FromW(strWdrive);
   for (auto& device : vector)
   {
