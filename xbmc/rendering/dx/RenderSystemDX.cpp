@@ -665,14 +665,6 @@ void CRenderSystemDX::SetAlphaBlendEnable(bool enable)
   m_BlendEnabled = enable;
 }
 
-HANDLE CRenderSystemDX::GetContexMutex() const
-{
-  if (m_deviceResources)
-    return m_deviceResources->GetContexMutex();
-
-  return INVALID_HANDLE_VALUE;
-}
-
 CD3DTexture* CRenderSystemDX::GetBackBuffer()
 {
   if (m_stereoView == RENDER_STEREO_VIEW_RIGHT && m_rightEyeTex.Get())

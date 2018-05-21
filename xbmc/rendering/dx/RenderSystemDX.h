@@ -86,7 +86,6 @@ public:
 
   void FlushGPU() const;
   void SetAlphaBlendEnable(bool enable);
-  HANDLE GetContexMutex() const;
 
   // empty overrides
   bool IsExtSupported(const char* extension) const override { return false; };
