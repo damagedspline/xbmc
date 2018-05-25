@@ -865,7 +865,7 @@ void CWinSystemWin32::UpdateResolutions()
   m_displays.clear();
 
   CWinSystemBase::UpdateResolutions();
-  CWinSystemWin32::GetConnectedDisplays(m_displays);
+  GetConnectedDisplays(m_displays);
 
   MONITOR_DETAILS* details = GetDisplayDetails(CServiceBroker::GetSettings().GetString(CSettings::SETTING_VIDEOSCREEN_MONITOR));
   if (!details)
