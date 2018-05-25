@@ -888,6 +888,9 @@ void CWinSystemWin32::UpdateResolutions()
 
   CLog::Log(LOGNOTICE, "Primary mode: %s", info.strMode.c_str());
 
+  // erase previous stored modes
+  CDisplaySettings::GetInstance().ClearCustomResolutions();
+
   for(int mode = 0;; mode++)
   {
     DEVMODEW devmode = { 0 };
@@ -906,18 +909,21 @@ void CWinSystemWin32::UpdateResolutions()
 
     RESOLUTION_INFO res;
     UpdateDesktopResolution(res, 0, devmode.dmPelsWidth, devmode.dmPelsHeight, refresh, dwFlags);
+    GetGfxContext().ResetOverscan(res);
     res.strOutput = strOuput;
 
     if (AddResolution(res))
       CLog::Log(LOGNOTICE, "Additional mode: %s", res.strMode.c_str());
   }
+
+  CDisplaySettings::GetInstance().ApplyCalibrations();
 }
 
 bool CWinSystemWin32::AddResolution(const RESOLUTION_INFO &res)
 {
-  for (unsigned int i = 0; i < CDisplaySettings::GetInstance().ResolutionInfoSize(); i++)
+  for (unsigned int i = RES_CUSTOM; i < CDisplaySettings::GetInstance().ResolutionInfoSize(); i++)
   {
-    RESOLUTION_INFO info = CDisplaySettings::GetInstance().GetResolutionInfo(i);
+    RESOLUTION_INFO& info = CDisplaySettings::GetInstance().GetResolutionInfo(i);
     if (info.iWidth        == res.iWidth
      && info.iHeight       == res.iHeight
      && info.iScreenWidth  == res.iScreenWidth
