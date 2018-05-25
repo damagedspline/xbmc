@@ -908,13 +908,12 @@ void CWinSystemWin32::UpdateResolutions()
     UpdateDesktopResolution(res, 0, devmode.dmPelsWidth, devmode.dmPelsHeight, refresh, dwFlags);
     res.strOutput = strOuput;
 
-    AddResolution(res);
-
-    CLog::Log(LOGNOTICE, "Additional mode: %s", res.strMode.c_str());
+    if (AddResolution(res))
+      CLog::Log(LOGNOTICE, "Additional mode: %s", res.strMode.c_str());
   }
 }
 
-void CWinSystemWin32::AddResolution(const RESOLUTION_INFO &res)
+bool CWinSystemWin32::AddResolution(const RESOLUTION_INFO &res)
 {
   for (unsigned int i = 0; i < CDisplaySettings::GetInstance().ResolutionInfoSize(); i++)
   {
@@ -925,10 +924,11 @@ void CWinSystemWin32::AddResolution(const RESOLUTION_INFO &res)
      && info.iScreenHeight == res.iScreenHeight
      && info.fRefreshRate  == res.fRefreshRate
      && info.dwFlags       == res.dwFlags)
-      return; // already have this resolution
+      return false; // already have this resolution
   }
 
   CDisplaySettings::GetInstance().AddResolutionInfo(res);
+  return true;
 }
 
 void CWinSystemWin32::ShowOSMouse(bool show)

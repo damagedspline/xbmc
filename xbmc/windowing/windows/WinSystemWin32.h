@@ -169,7 +169,7 @@ protected:
    \brief Adds a resolution to the list of resolutions if we don't already have it
    \param res resolution to add.
    */
-  static void AddResolution(const RESOLUTION_INFO &res);
+  static bool AddResolution(const RESOLUTION_INFO &res);
 
   void OnDisplayLost();
   void OnDisplayReset();
