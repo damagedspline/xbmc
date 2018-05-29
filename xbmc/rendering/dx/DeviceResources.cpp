@@ -87,6 +87,7 @@ DX::DeviceResources::DeviceResources()
   , m_deviceNotify(nullptr)
   , m_stereoEnabled(false)
   , m_bDeviceCreated(false)
+  , m_frameLatencyWaitableObject(INVALID_HANDLE_VALUE)
 {
 }
 
@@ -106,6 +107,12 @@ void DX::DeviceResources::Release()
   m_swapChain->GetFullscreenState(&bFullScreen, nullptr);
   if (!!bFullScreen)
     m_swapChain->SetFullscreenState(false, nullptr);
+
+  if (m_frameLatencyWaitableObject != INVALID_HANDLE_VALUE)
+  {
+    CloseHandle(m_frameLatencyWaitableObject);
+    m_frameLatencyWaitableObject = INVALID_HANDLE_VALUE;
+  }
 
   m_swapChain = nullptr;
   m_adapter = nullptr;
@@ -538,6 +545,12 @@ void DX::DeviceResources::ResizeBuffers()
         m_swapChain->SetFullscreenState(false, nullptr); // mandatory before releasing swapchain
       }
 
+      if (m_frameLatencyWaitableObject != INVALID_HANDLE_VALUE)
+      {
+        CloseHandle(m_frameLatencyWaitableObject);
+        m_frameLatencyWaitableObject = INVALID_HANDLE_VALUE;
+      }
+
       m_swapChain = nullptr;
       m_deferrContext->Flush();
       m_d3dContext->Flush();
@@ -553,7 +566,7 @@ void DX::DeviceResources::ResizeBuffers()
       lround(m_outputSize.Width),
       lround(m_outputSize.Height),
       scDesc.Format,
-      0
+      scDesc.Flags
     );
 
     if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
@@ -589,7 +602,8 @@ void DX::DeviceResources::ResizeBuffers()
     swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     swapChainDesc.BufferCount = 3 * (1 + bHWStereoEnabled);
     swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
-    swapChainDesc.Flags = 0;
+    if (CSysInfo::IsWindowsVersionAtLeast(CSysInfo::WindowsVersionWin8_1))
+      swapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
     swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
     swapChainDesc.SampleDesc.Count = 1;
     swapChainDesc.SampleDesc.Quality = 0;
@@ -621,9 +635,18 @@ void DX::DeviceResources::ResizeBuffers()
 
     // Ensure that DXGI does not queue more than one frame at a time. This both reduces latency and
     // ensures that the application will only render after each VSync, minimizing power consumption.
-    ComPtr<IDXGIDevice1> dxgiDevice;
-    hr = m_d3dDevice.As(&dxgiDevice); CHECK_ERR();
-    dxgiDevice->SetMaximumFrameLatency(1);
+    ComPtr<IDXGISwapChain2> swapChain2;
+    if (SUCCEEDED(swapChain.As(&swapChain2)))
+    {
+      m_frameLatencyWaitableObject = swapChain2->GetFrameLatencyWaitableObject();
+      swapChain2->SetMaximumFrameLatency(1);
+    }
+    else
+    {
+      ComPtr<IDXGIDevice1> dxgiDevice;
+      hr = m_d3dDevice.As(&dxgiDevice); CHECK_ERR();
+      dxgiDevice->SetMaximumFrameLatency(1);
+    }
   }
 }
 
@@ -889,6 +912,9 @@ void DX::DeviceResources::Present()
       CreateFactory();
   }
 
+  // block this thread until the swap chain is finished presenting. 
+  WaitOnSwapChain();
+
   if (m_d3dContext == m_deferrContext)
   {
     m_deferrContext->OMSetRenderTargets(1, m_backBufferTex.GetAddressOfRTV(), m_d3dDepthStencilView.Get());
@@ -1016,6 +1042,18 @@ bool DX::DeviceResources::DoesTextureSharingWork()
 
   // @todo proper check in run-time
   return g_advancedSettings.m_allowUseSeparateDeviceForDecoding;
+}
+
+void DX::DeviceResources::WaitOnSwapChain()
+{
+  if (m_frameLatencyWaitableObject != INVALID_HANDLE_VALUE)
+  {
+    WaitForSingleObjectEx(
+      m_frameLatencyWaitableObject,
+      100, // 100ms second timeout (shouldn't ever occur)
+      true
+    );
+  }
 }
 
 #if defined(TARGET_WINDOWS_DESKTOP)

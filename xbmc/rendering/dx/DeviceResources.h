@@ -19,20 +19,18 @@
  */
 #pragma once
 
+#include "DirectXHelper.h"
+#include "guilib/D3DResource.h"
+
 #include <wrl.h>
 #include <wrl/client.h>
 #include <concrt.h>
-#if defined(TARGET_WINDOWS_STORE)
 #include <dxgi1_3.h>
-#else
-#include <dxgi1_2.h>
+#if !defined(TARGET_WINDOWS_STORE)
 #include <easyhook/easyhook.h>
 #endif
 #include <functional>
 #include <memory>
-
-#include "DirectXHelper.h"
-#include "guilib/D3DResource.h"
 
 struct RESOLUTION_INFO;
 
@@ -134,6 +132,7 @@ namespace DX
     void SetWindowPos(winrt::Windows::Foundation::Rect rect);
 #endif // TARGET_WINDOWS_STORE
     bool DoesTextureSharingWork();
+    void WaitOnSwapChain();
 
   private:
     class CBackBuffer : public CD3DTexture
@@ -192,5 +191,7 @@ namespace DX
     std::vector<ID3DResource*> m_resources;
     bool m_stereoEnabled;
     bool m_bDeviceCreated;
+    // Used by the WaitOnSwapChain method.
+    HANDLE m_frameLatencyWaitableObject;
   };
 }

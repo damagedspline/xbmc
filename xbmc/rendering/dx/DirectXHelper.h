@@ -19,13 +19,13 @@
  */
 #pragma once
 
-#include <ppltasks.h>	// For create_task
 #include "commons/Exception.h"
 #include "dxerr.h"
 #include "platform/win32/CharsetConverter.h"
 #include "ServiceBroker.h"
 
 #include <d3d11_1.h>
+#include <ppltasks.h>	// For create_task
 
 namespace DX
 {
