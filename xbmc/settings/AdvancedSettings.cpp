@@ -856,7 +856,7 @@ void CAdvancedSettings::ParseSettingsFile(const std::string &file)
     XMLUtils::GetInt(pElement, "curlclienttimeout", m_curlconnecttimeout, 1, 1000);
     XMLUtils::GetInt(pElement, "curllowspeedtime", m_curllowspeedtime, 1, 1000);
     XMLUtils::GetInt(pElement, "curlretries", m_curlretries, 0, 10);
-    XMLUtils::GetBoolean(pElement, "disableipv6", m_curlDisableIPV6);
+    XMLUtils::GetBoolean(pElement,"disableipv6", m_curlDisableIPV6);
     XMLUtils::GetBoolean(pElement, "disablehttp2", m_curlDisableHTTP2);
   }
 
