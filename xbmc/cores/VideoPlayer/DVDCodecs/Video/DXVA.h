@@ -103,6 +103,9 @@ public:
   bool CreateDecoder(const D3D11_VIDEO_DECODER_DESC& format, const D3D11_VIDEO_DECODER_CONFIG& config,
                      ID3D11VideoDecoder** decoder, ID3D11VideoContext** context);
   void Release(CDecoder* decoder);
+
+  bool Check() const;
+  bool Reset();
   bool IsContextShared() const
   {
     return m_sharingAllowed;

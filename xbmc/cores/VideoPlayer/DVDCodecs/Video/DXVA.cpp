@@ -467,7 +467,7 @@ bool CContext::GetConfig(const D3D11_VIDEO_DECODER_DESC &format, D3D11_VIDEO_DEC
   const unsigned bitstream = 2; // ConfigBitstreamRaw = 2 is required for Poulsbo and handles skipping better with nVidia
   for (unsigned i = 0; i< cfg_count; i++)
   {
-    D3D11_VIDEO_DECODER_CONFIG pConfig = {0};
+    D3D11_VIDEO_DECODER_CONFIG pConfig = {};
     if (FAILED(m_pD3D11Device->GetVideoDecoderConfig(&format, i, &pConfig)))
     {
       CLog::LogF(LOGNOTICE, "failed getting decoder configuration.");
@@ -614,6 +614,23 @@ bool CContext::IsValidDecoder(CDecoder* decoder)
   return std::find(m_decoders.begin(), m_decoders.end(), decoder) != m_decoders.end();
 }
 
+bool CContext::Check() const
+{
+  if (!m_sharingAllowed)
+    return true;
+
+  ComPtr<ID3D11Device> pDevice;
+  m_pD3D11Context->GetDevice(&pDevice);
+
+  return SUCCEEDED(pDevice->GetDeviceRemovedReason());
+}
+
+bool CContext::Reset()
+{
+  DestroyContext();
+  return CreateContext();
+}
+
 //-----------------------------------------------------------------------------
 // CDXVAOutputBuffer
 //-----------------------------------------------------------------------------
@@ -725,6 +742,7 @@ void COutputCopyBuffer::Initialize(CDecoder* decoder)
     D3D11_TEXTURE2D_DESC desc;
     pDecoderTexture->GetDesc(&desc);
     desc.ArraySize = 1;
+    desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
     desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
 
     if (FAILED(pDevice->CreateTexture2D(&desc, nullptr, &pCopyTexture)))
@@ -949,12 +967,14 @@ void CDecoder::Close()
   CSingleLock lock(m_section);
   m_pD3D11Decoder = nullptr;
   m_pD3D11Context = nullptr;
+
   if (m_videoBuffer)
   {
     m_videoBuffer->Release();
     m_videoBuffer = nullptr;
   }
-  memset(&m_format, 0, sizeof(m_format));
+  m_format = {};
+  m_sharedHandle = INVALID_HANDLE_VALUE;
 
   if (m_dxvaContext)
   {
@@ -963,7 +983,6 @@ void CDecoder::Close()
     m_dxvaContext = nullptr;
     dxva_context->Release(this);
   }
-  m_sharedHandle = INVALID_HANDLE_VALUE;
 }
 
 static bool CheckH264L41(AVCodecContext* avctx)
@@ -1150,22 +1169,11 @@ bool CDecoder::Open(AVCodecContext* avctx, AVCodecContext* mainctx, enum AVPixel
   if (avctx->active_thread_type & FF_THREAD_FRAME)
     m_refs += avctx->thread_count;
 
-  DXGI_ADAPTER_DESC AIdentifier = {};
-  DX::DeviceResources::Get()->GetAdapterDesc(&AIdentifier);
-
-  if (m_dxvaContext->IsContextShared())
-  {
-    // use true shared buffers on Intel
-    if (AIdentifier.VendorId == PCIV_Intel)
-      m_bufferPool = std::reinterpret_pointer_cast<CBufferPool<COutputBuffer>>(std::make_shared<CBufferPool<COutputSharedBuffer>>());
-    else
-      m_bufferPool = std::reinterpret_pointer_cast<CBufferPool<COutputBuffer>>(std::make_shared<CBufferPool<COutputCopyBuffer>>());
-  }
-  else
-    m_bufferPool = std::make_shared<CBufferPool<COutputBuffer>>();
-
   if (!OpenDecoder())
+  {
+    m_bufferPool.reset();
     return false;
+  }
 
   avctx->get_buffer2 = FFGetBuffer;
   avctx->hwaccel_context = m_avD3D11Context;
@@ -1176,7 +1184,11 @@ bool CDecoder::Open(AVCodecContext* avctx, AVCodecContext* mainctx, enum AVPixel
   mainctx->slice_flags = SLICE_FLAG_ALLOW_FIELD | SLICE_FLAG_CODED_ORDER;
 
   m_avCtx = mainctx;
-  if (AIdentifier.VendorId == PCIV_Intel && m_format.Guid == DXVADDI_Intel_ModeH264_E)
+
+  DXGI_ADAPTER_DESC AIdentifier = {};
+  DX::DeviceResources::Get()->GetAdapterDesc(&AIdentifier);
+
+  if (m_format.Guid == DXVADDI_Intel_ModeH264_E)
   {
 #ifdef FF_DXVA2_WORKAROUND_INTEL_CLEARVIDEO
     m_avD3D11Context->workaround |= FF_DXVA2_WORKAROUND_INTEL_CLEARVIDEO;
@@ -1273,38 +1285,43 @@ CDVDVideoCodec::VCReturn CDecoder::Check(AVCodecContext* avctx)
   if (!m_pD3D11Decoder)
     return CDVDVideoCodec::VC_BUFFER;
 
-  if (m_dxvaContext->IsContextShared())
-  {
-    if (!CheckInternal())
-      Close();
-  }
-  else
-  {
-    if (m_state == DXVA_RESET)
-      Close();
+  // reset decoder if context detects an error on its device
+  if (!m_dxvaContext->Check())
+    m_state = DXVA_RESET;
 
+  // app device is lost
+  if (m_state == DXVA_LOST)
+  {
+    lock.Leave();
+    // wait app device restoration
+    m_event.WaitMSec(2000);
+    lock.Enter();
+
+    // still in lost state after 2sec
     if (m_state == DXVA_LOST)
     {
-      Close();
-      lock.Leave();
-      m_event.WaitMSec(2000);
-      lock.Enter();
-      if (m_state == DXVA_LOST)
-      {
-        CLog::LogF(LOGERROR, "device didn't reset in reasonable time.");
-        return CDVDVideoCodec::VC_ERROR;
-      }
+      CLog::LogF(LOGERROR, "device didn't reset in reasonable time.");
+      return CDVDVideoCodec::VC_ERROR;
     }
   }
 
-  if (m_format.SampleWidth == 0 || m_format.SampleHeight == 0)
+  if (m_state != DXVA_OPEN)
   {
-    if (!Open(avctx, avctx, avctx->pix_fmt))
+    // reset context in case of app device reset or context device error
+    if (!m_dxvaContext->Reset())
+    {
+      CLog::LogF(LOGERROR, "context didn't reset.");
+      return CDVDVideoCodec::VC_ERROR;
+    }
+
+    if (!OpenDecoder())
     {
       CLog::LogF(LOGERROR, "decoder was not able to reset.");
       Close();
       return CDVDVideoCodec::VC_ERROR;
     }
+    // decoder re-opened
+    m_state = DXVA_OPEN;
     return CDVDVideoCodec::VC_FLUSHED;
   }
 
@@ -1352,14 +1369,6 @@ CDVDVideoCodec::VCReturn CDecoder::Check(AVCodecContext* avctx)
   return CDVDVideoCodec::VC_NONE;
 }
 
-bool CDecoder::CheckInternal() const
-{
-  ComPtr<ID3D11Device> pDevice;
-  m_pD3D11Decoder->GetDevice(&pDevice);
-
-  return SUCCEEDED(pDevice->GetDeviceRemovedReason());
-}
-
 bool CDecoder::OpenDecoder()
 {
   m_pD3D11Decoder = nullptr;
@@ -1373,12 +1382,26 @@ bool CDecoder::OpenDecoder()
                                       m_avD3D11Context->surface, &m_sharedHandle))
     return false;
 
-  for (unsigned i = 0; i < m_avD3D11Context->surface_count; i++)
-    m_bufferPool->AddView(m_avD3D11Context->surface[i]);
-
   if (!m_dxvaContext->CreateDecoder(m_format, *m_avD3D11Context->cfg, m_pD3D11Decoder.GetAddressOf(),
                                      m_pD3D11Context.GetAddressOf()))
     return false;
+
+  if (m_dxvaContext->IsContextShared())
+  {
+    DXGI_ADAPTER_DESC AIdentifier = {};
+    DX::DeviceResources::Get()->GetAdapterDesc(&AIdentifier);
+
+    // use true shared buffers on Intel
+    //if (AIdentifier.VendorId == PCIV_Intel)
+    //  m_bufferPool = std::reinterpret_pointer_cast<CBufferPool<COutputBuffer>>(std::make_shared<CBufferPool<COutputSharedBuffer>>());
+    //else
+      m_bufferPool = std::reinterpret_pointer_cast<CBufferPool<COutputBuffer>>(std::make_shared<CBufferPool<COutputCopyBuffer>>());
+  }
+  else
+    m_bufferPool = std::make_shared<CBufferPool<COutputBuffer>>();
+
+  for (unsigned i = 0; i < m_avD3D11Context->surface_count; i++)
+    m_bufferPool->AddView(m_avD3D11Context->surface[i]);
 
   m_avD3D11Context->decoder = m_pD3D11Decoder.Get();
   m_avD3D11Context->video_context = m_pD3D11Context.Get();
