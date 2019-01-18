@@ -473,14 +473,12 @@ bool CRenderBuffer::MapPlane(unsigned idx, void** pData, int* pStride) const
   return true;
 }
 
-bool CRenderBuffer::UnmapPlane(unsigned idx) const
+void CRenderBuffer::UnmapPlane(unsigned idx) const
 {
   if (!m_textures[idx].UnlockRect(0))
   {
     CLog::Log(LOGERROR, "%s - failed to unlock buffer texture.", __FUNCTION__);
-    return false;
   }
-  return true;
 }
 
 bool CRenderBuffer::HasPic() const
