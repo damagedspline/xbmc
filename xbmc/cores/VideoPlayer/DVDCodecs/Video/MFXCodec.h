@@ -12,6 +12,7 @@
 
 #include "DVDVideoCodec.h"
 #include "threads/Event.h"
+#include <d3d11.h>
 #include <queue>
 #include <vector>
 
@@ -100,6 +101,7 @@ public:
   // extended view
   void GetPlanesExt(uint8_t* (&planes)[YuvImage::MAX_PLANES]) const;
   void GetStridesExt(int (&strides)[YuvImage::MAX_PLANES]) const;
+  HRESULT GetHWResource(bool extended, ID3D11Resource** ppResource, unsigned* index);
 
   MVCBuffer* baseView = nullptr;
   MVCBuffer* extraView = nullptr;

@@ -588,13 +588,11 @@ void CRenderBuffer::QueueCopyBuffer()
 
 bool CRenderBuffer::CopyToD3D11()
 {
-  D3D11_MAPPED_SUBRESOURCE* rects = GetRects();
-
-  if (!IsLocked() || !rects[PLANE_D3D11].pData)
+  if (!IsLocked() || !GetRects()[PLANE_D3D11].pData)
     return false;
 
   // destination
-  D3D11_MAPPED_SUBRESOURCE rect = rects[PLANE_D3D11];
+  D3D11_MAPPED_SUBRESOURCE rect = GetRects()[PLANE_D3D11];
   uint8_t* pData = static_cast<uint8_t*>(rect.pData);
   uint8_t* dst[] = {pData, pData + m_heightTex * rect.RowPitch};
   int dstStride[] = {static_cast<int>(rect.RowPitch), static_cast<int>(rect.RowPitch)};
@@ -621,7 +619,8 @@ bool CRenderBuffer::CopyToD3D11()
 
   const AVPixelFormat buffer_format = videoBuffer->GetFormat();
   // copy to texture
-  if (buffer_format == AV_PIX_FMT_NV12 || buffer_format == AV_PIX_FMT_P010 ||
+  if (buffer_format == AV_PIX_FMT_NV12 || 
+      buffer_format == AV_PIX_FMT_P010 ||
       buffer_format == AV_PIX_FMT_P016)
   {
     Concurrency::parallel_invoke(
@@ -921,11 +920,7 @@ HRESULT CRenderBuffer::GetHWResource(ID3D11Resource** ppResource, unsigned* arra
   auto mvc = dynamic_cast<CMVCPicture*>(videoBuffer);
   if (mvc)
   {
-    const mfxHDLPair hndl = UseExtendedBuffer() ? mvc->extHNDL : mvc->baseHNDL;
-    pResource = reinterpret_cast<ID3D11Texture2D*>(hndl.first);
-    index = (unsigned)hndl.second;
-
-    hr = S_OK;
+    hr = mvc->GetHWResource(UseExtendedBuffer(), &pResource, &index);
   }
 #endif
 

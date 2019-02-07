@@ -134,6 +134,19 @@ void CMVCPicture::GetStridesExt(int (&strides)[YuvImage::MAX_PLANES]) const
   }
 }
 
+HRESULT CMVCPicture::GetHWResource(bool extended, ID3D11Resource** ppResource, unsigned* index)
+{
+  mfxHDLPair hndl = extended ? extHNDL : baseHNDL;
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> texture = reinterpret_cast<ID3D11Texture2D*>(hndl.first);
+  if (texture)
+  {
+    *ppResource = texture.Detach();
+    *index = reinterpret_cast<unsigned>(hndl.second);
+    return S_OK;
+  }
+  return E_POINTER;
+}
+
 //-----------------------------------------------------------------------------
 // MVC Context
 //-----------------------------------------------------------------------------
