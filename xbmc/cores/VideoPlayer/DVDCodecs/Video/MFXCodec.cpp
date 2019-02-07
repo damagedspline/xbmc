@@ -84,7 +84,7 @@ static uint32_t avc_quant(uint8_t* src, uint8_t* dst, int extralen)
 CMVCPicture::CMVCPicture(size_t idx)
     : CVideoBuffer(static_cast<int>(idx))
 {
-  m_pixFormat = AV_PIX_FMT_NONE;
+  m_pixFormat = AV_PIX_FMT_NV12;
 }
 
 void CMVCPicture::ApplyBuffers(MVCBuffer* pBaseView, MVCBuffer* pExtraBuffer)
@@ -249,6 +249,7 @@ void CMVCContext::Return(int id)
 
   auto buf = m_out[id];
 
+  Unlock(buf);
   Return(buf->baseView);
   Return(buf->extraView);
 
@@ -513,10 +514,8 @@ bool CMFXCodec::Open(CDVDStreamInfo& hints, CDVDCodecOptions& options)
 
   m_processInfo.SetVideoDimensions(hints.width, hints.height);
   m_processInfo.SetVideoDAR(static_cast<float>(hints.aspect));
-  m_processInfo.SetVideoDecoderName(GetName(), (m_impl & 0xF) >= MFX_IMPL_HARDWARE);
   m_processInfo.SetVideoDeintMethod("none");
 
-  CLog::LogF(LOGNOTICE, "using %s %s decoder.", GetName(), (m_impl & 0xF) >= MFX_IMPL_HARDWARE ? "HW" : "SW");
   return true;
 
 fail:
@@ -640,6 +639,9 @@ bool CMFXCodec::AllocateFrames()
   if ((mfxRequest.NumFrameSuggested < m_mfxVideoParams.AsyncDepth) &&
       (m_impl & MFX_IMPL_HARDWARE_ANY))
     return false;
+
+  m_processInfo.SetVideoDecoderName(GetName(), !bDecOutSysmem);
+  CLog::LogF(LOGNOTICE, "using %s %s decoder.", GetName(), bDecOutSysmem ? "SW" : "HW");
 
   MFX::mfxAllocatorParams* pParams = nullptr;
 #ifdef TARGET_WINDOWS
@@ -915,19 +917,15 @@ CDVDVideoCodec::VCReturn CMFXCodec::GetPicture(VideoPicture* pFrame)
   {
     if (pFrame->videoBuffer)
     {
-      const CMVCPicture* mvcPicture = reinterpret_cast<CMVCPicture*>(pFrame->videoBuffer);
-      m_context->Unlock(mvcPicture);
       pFrame->videoBuffer->Release();
       pFrame->videoBuffer = nullptr;
     }
-
-    bool useSysMem = m_mfxVideoParams.IOPattern == MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
 
     CMVCPicture* pRenderPicture = m_outputQueue.front();
     m_outputQueue.pop();
 
     m_context->Lock(pRenderPicture);
-    MVCBuffer *pBaseView = pRenderPicture->baseView, *pExtraView = pRenderPicture->extraView;
+    MVCBuffer *pBaseView = pRenderPicture->baseView;
 
     pFrame->iWidth = pBaseView->surface.Info.Width;
     pFrame->iHeight = pBaseView->surface.Info.Height;
