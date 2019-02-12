@@ -178,6 +178,11 @@ void CRenderBuffer::Clear()
       memset(m_rectsEx[PLANE_UV].pData, 0x80, m_rectsEx[PLANE_UV].RowPitch * (m_heightTex >> 1));
     }
     break;
+  case BUFFER_FMT_P010:
+  case BUFFER_FMT_P016:
+    wmemset(static_cast<wchar_t*>(m_rects[PLANE_Y].pData), 0, m_rects[PLANE_D3D11].RowPitch * m_heightTex >> 1);
+    wmemset(static_cast<wchar_t*>(m_rects[PLANE_UV].pData), 0x8000, m_rects[PLANE_UV].RowPitch * (m_heightTex >> 1) >> 1);
+    break;
   case BUFFER_FMT_D3D11_BYPASS:
     break;
   case BUFFER_FMT_D3D11_NV12:
@@ -195,12 +200,6 @@ void CRenderBuffer::Clear()
     break;
   }
   case BUFFER_FMT_D3D11_P010:
-  {
-    wchar_t* uvData = static_cast<wchar_t*>(m_rects[PLANE_D3D11].pData) + m_rects[PLANE_D3D11].RowPitch * (m_heightTex >> 1);
-    wmemset(static_cast<wchar_t*>(m_rects[PLANE_D3D11].pData), 0, m_rects[PLANE_D3D11].RowPitch * m_heightTex >> 1);
-    wmemset(uvData, 0x200, m_rects[PLANE_D3D11].RowPitch * (m_heightTex >> 1) >> 1);
-    break;
-  }
   case BUFFER_FMT_D3D11_P016:
   {
     wchar_t* uvData = static_cast<wchar_t*>(m_rects[PLANE_D3D11].pData) + m_rects[PLANE_D3D11].RowPitch * (m_heightTex >> 1);
@@ -209,12 +208,10 @@ void CRenderBuffer::Clear()
     break;
   }
   case BUFFER_FMT_UYVY422:
-    wmemset(static_cast<wchar_t*>(m_rects[PLANE_Y].pData), 0x0080,
-            m_rects[PLANE_Y].RowPitch * (m_heightTex >> 1));
+    wmemset(static_cast<wchar_t*>(m_rects[PLANE_Y].pData), 0x0080, m_rects[PLANE_Y].RowPitch * (m_heightTex >> 1));
     break;
   case BUFFER_FMT_YUYV422:
-    wmemset(static_cast<wchar_t*>(m_rects[PLANE_Y].pData), 0x8000,
-            m_rects[PLANE_Y].RowPitch * (m_heightTex >> 1));
+    wmemset(static_cast<wchar_t*>(m_rects[PLANE_Y].pData), 0x8000, m_rects[PLANE_Y].RowPitch * (m_heightTex >> 1));
     break;
   default:
     break;
@@ -237,8 +234,9 @@ bool CRenderBuffer::CreateBuffer(const SRenderBufferDesc& desc)
 
   if (m_soft)
   {
-    m_mapType = D3D11_MAP_WRITE;
-    usage = D3D11_USAGE_STAGING;
+    //m_mapType = D3D11_MAP_WRITE;
+    //usage = D3D11_USAGE_STAGING;
+    return true;
   }
 
   DXGI_FORMAT dxgi_format = DXGI_FORMAT_UNKNOWN;
@@ -284,6 +282,16 @@ bool CRenderBuffer::CreateBuffer(const SRenderBufferDesc& desc)
           !m_texturesEx[PLANE_UV].Create(m_widthTex >> 1, m_heightTex >> 1, 1, usage, uvFormat))
         return false;
     }
+
+    m_activePlanes = 2;
+    break;
+  }
+  case BUFFER_FMT_P010:
+  case BUFFER_FMT_P016:
+  {
+    if (!m_textures[PLANE_Y].Create(m_widthTex, m_heightTex, 1, usage, DXGI_FORMAT_R16_UNORM) ||
+        !m_textures[PLANE_UV].Create(m_widthTex >> 1, m_heightTex >> 1, 1, usage, DXGI_FORMAT_R16G16_UNORM))
+      return false;
 
     m_activePlanes = 2;
     break;
@@ -380,6 +388,8 @@ bool CRenderBuffer::UploadBuffer()
     break;
   }
   case BUFFER_FMT_NV12:
+  case BUFFER_FMT_P010:
+  case BUFFER_FMT_P016:
   case BUFFER_FMT_YUV420P:
   case BUFFER_FMT_YUV420P10:
   case BUFFER_FMT_YUV420P16:
@@ -543,6 +553,36 @@ void CRenderBuffer::GetDataPtr(unsigned idx, void** pData, int* pStride)
     *pData = rects[idx].pData;
   if (pStride)
     *pStride = rects[idx].RowPitch;
+}
+
+void CRenderBuffer::LockDataPlanes(uint8_t*(& planes)[3], int(& strides)[3])
+{
+  if (!m_soft)
+    return;
+
+  switch (videoBuffer->GetFormat())
+  {
+  case AV_PIX_FMT_D3D11VA_VLD:
+    D3D11_MAPPED_SUBRESOURCE stage;
+    if (SUCCEEDED(DX::DeviceResources::Get()->GetImmediateContext()->Map(m_staging.Get(), 0, D3D11_MAP_READ, 0, &stage)))
+    {
+      planes[0] = reinterpret_cast<uint8_t*>(stage.pData);
+      planes[1] = reinterpret_cast<uint8_t*>(stage.pData) + stage.RowPitch * m_sDesc.Height;
+      strides[0] = strides[1] = stage.RowPitch;
+    }
+    break;
+  default:
+    videoBuffer->GetPlanes(planes);
+    videoBuffer->GetStrides(strides);
+  }
+}
+
+void CRenderBuffer::UnlockDataPlanes()
+{
+  if (!m_soft || !m_staging)
+    return;
+
+  DX::DeviceResources::Get()->GetImmediateContext()->Unmap(m_staging.Get(), 0);
 }
 
 bool CRenderBuffer::MapPlane(unsigned idx, void** pData, int* pStride)
@@ -720,7 +760,7 @@ bool CRenderBuffer::CopyToStaging()
 
 void CRenderBuffer::CopyFromStaging()
 {
-  if (!IsLocked())
+  if (!IsLocked() || m_soft)
     return;
 
   D3D11_MAPPED_SUBRESOURCE* rects = GetRects();

@@ -16,6 +16,7 @@
 #include "WinRenderBuffer.h"
 
 #include <wrl/client.h>
+#include "RendererBase.h"
 
 #define AUTOSOURCE -1
 
@@ -24,14 +25,6 @@ class CConvolutionShader;
 class COutputShader;
 struct VideoPicture;
 enum EBufferFormat;
-
-enum RenderMethod
-{
-  RENDER_INVALID = 0x00,
-  RENDER_PS      = 0x01,
-  RENDER_SW      = 0x02,
-  RENDER_DXVA    = 0x03,
-};
 
 class CWinRenderer : public CBaseRenderer, IVideoSettingsHolder
 {

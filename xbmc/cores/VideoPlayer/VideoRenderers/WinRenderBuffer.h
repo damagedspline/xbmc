@@ -21,6 +21,8 @@ enum EBufferFormat
   BUFFER_FMT_YUV420P10,
   BUFFER_FMT_YUV420P16,
   BUFFER_FMT_NV12,
+  BUFFER_FMT_P010,
+  BUFFER_FMT_P016,
   BUFFER_FMT_UYVY422,
   BUFFER_FMT_YUYV422,
   BUFFER_FMT_D3D11_BYPASS,
@@ -71,6 +73,8 @@ public:
   ID3D11View* GetView(unsigned idx = 0);
 
   void GetDataPtr(unsigned idx, void** pData, int* pStride);
+  void LockDataPlanes(uint8_t*(&planes)[3], int(&strides)[3]);
+  void UnlockDataPlanes();
   bool MapPlane(unsigned idx, void** pData, int* pStride);
   bool UnmapPlane(unsigned idx);
 

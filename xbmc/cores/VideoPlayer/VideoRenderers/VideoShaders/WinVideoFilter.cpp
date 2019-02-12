@@ -473,6 +473,8 @@ bool CYUV2RGBShader::Create(EBufferFormat fmt, AVColorPrimaries dstPrimaries, AV
   case BUFFER_FMT_D3D11_P010:
   case BUFFER_FMT_D3D11_P016:
   case BUFFER_FMT_NV12:
+  case BUFFER_FMT_P010:
+  case BUFFER_FMT_P016:
     defines["XBMC_NV12"] = "";
     // FL 9.x doesn't support DXGI_FORMAT_R8G8_UNORM, so we have to use SNORM and correct values in shader
     if (!DX::Windowing()->IsFormatSupport(DXGI_FORMAT_R8G8_UNORM, D3D11_FORMAT_SUPPORT_TEXTURE2D))

@@ -28,6 +28,7 @@
 #include "VideoShaders/WinVideoFilter.h"
 #include "rendering/dx/DeviceResources.h"
 #include "rendering/dx/RenderContext.h"
+#include "RendererBase.h"
 #ifdef HAVE_LIBMFX
 #include "cores/VideoPlayer/DVDCodecs/Video/MFXCodec.h"
 #endif
@@ -366,8 +367,11 @@ bool CWinRenderer::Flush(bool saveBuffers)
   if (!m_bConfigured)
     return false;
 
-  for (int i = 0; i < NUM_BUFFERS; i++)
-    DeleteRenderBuffer(i);
+  if (!saveBuffers)
+  {
+    for (int i = 0; i < NUM_BUFFERS; i++)
+      DeleteRenderBuffer(i);
+  }
 
   m_iYV12RenderBuffer = 0;
   m_NumYV12Buffers = 0;
@@ -472,11 +476,10 @@ EBufferFormat CWinRenderer::SelectBufferFormat(AVPixelFormat format, const Rende
     {
       switch(m_dxva_format)
       {
-        // @todo implement support of these formats
-        //case DXGI_FORMAT_P010:
-        //  return BUFFER_FMT_YUV420P10;
-        //case DXGI_FORMAT_P016:
-        //  return BUFFER_FMT_YUV420P16;
+        case DXGI_FORMAT_P010:
+          return BUFFER_FMT_P010;
+        case DXGI_FORMAT_P016:
+          return BUFFER_FMT_P016;
         case DXGI_FORMAT_NV12:
         default:
           return BUFFER_FMT_NV12;
@@ -765,10 +768,10 @@ void CWinRenderer::RenderSW(CD3DTexture* target)
       decoderFormat = AV_PIX_FMT_NV12;
       break;
     case DXGI_FORMAT_P010:
-      decoderFormat = AV_PIX_FMT_YUV420P10;
+      decoderFormat = AV_PIX_FMT_P010;
       break;
     case DXGI_FORMAT_P016:
-      decoderFormat = AV_PIX_FMT_YUV420P16;
+      decoderFormat = AV_PIX_FMT_P016;
       break;
     default:
       break;
@@ -785,9 +788,10 @@ void CWinRenderer::RenderSW(CD3DTexture* target)
 
   uint8_t* src[YuvImage::MAX_PLANES];
   int srcStride[YuvImage::MAX_PLANES];
+  buf.LockDataPlanes(src, srcStride);
 
-  for (unsigned int idx = 0; idx < buf.GetActivePlanes(); idx++)
-    buf.MapPlane(idx, reinterpret_cast<void**>(&src[idx]), &srcStride[idx]);
+  //for (unsigned int idx = 0; idx < buf.GetActivePlanes(); idx++)
+  //  buf.MapPlane(idx, reinterpret_cast<void**>(&src[idx]), &srcStride[idx]);
 
   D3D11_MAPPED_SUBRESOURCE destlr;
   if (!m_IntermediateTarget.LockRect(0, &destlr, D3D11_MAP_WRITE_DISCARD))
@@ -798,8 +802,9 @@ void CWinRenderer::RenderSW(CD3DTexture* target)
 
   sws_scale(m_sw_scale_ctx, src, srcStride, 0, m_sourceHeight, dst, dstStride);
 
-  for (unsigned int idx = 0; idx < buf.GetActivePlanes(); idx++)
-    buf.UnmapPlane(idx);
+  buf.UnlockDataPlanes();
+  //for (unsigned int idx = 0; idx < buf.GetActivePlanes(); idx++)
+  //  buf.UnmapPlane(idx);
 
   if (!m_IntermediateTarget.UnlockRect(0))
     CLog::Log(LOGERROR, "%s: failed to unlock swtarget texture.", __FUNCTION__);
@@ -1152,7 +1157,6 @@ CRenderInfo CWinRenderer::GetRenderInfo()
     if (m_format != AV_PIX_FMT_D3D11VA_VLD)
       info.m_deintMethods.push_back(VS_INTERLACEMETHOD_DXVA_AUTO);
   }
-  else
   return info;
 }
 
