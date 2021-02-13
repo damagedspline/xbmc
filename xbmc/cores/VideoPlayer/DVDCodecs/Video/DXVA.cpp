@@ -736,16 +736,18 @@ void CDXVABufferPool::AddView(ID3D11View* view)
   m_freeViews.push_back(idx);
 }
 
-void CDXVABufferPool::ReturnView(ID3D11View* surf)
+bool CDXVABufferPool::ReturnView(ID3D11View* surf)
 {
   CSingleLock lock(m_section);
 
   auto it = std::find(m_views.begin(), m_views.end(), surf);
   if (it == m_views.end())
-    return;
+    return false;
 
   size_t idx = it - m_views.begin();
   m_freeViews.push_back(idx);
+
+  return true;
 }
 
 bool CDXVABufferPool::IsValid(ID3D11View* surf)
