@@ -44,21 +44,41 @@ private:
   CRect ApplyTransforms(const CRect& destRect) const;
 
   std::unique_ptr<DXVA::CProcessorHD> m_processor;
+
+  bool m_isMultiView;
 };
 
 class CRendererDXVA::CRenderBufferImpl : public CRenderBuffer
 {
 public:
-  explicit CRenderBufferImpl(AVPixelFormat av_pix_format, unsigned width, unsigned height);
+  explicit CRenderBufferImpl(AVPixelFormat av_pix_format,
+                             unsigned width,
+                             unsigned height,
+                             const bool& isMultiview, 
+                             const CVideoSettings& videoSettings);
   ~CRenderBufferImpl();
+
+  void ReleasePicture() override;
 
   bool UploadBuffer() override;
   HRESULT GetResource(ID3D11Resource** ppResource, unsigned* index) const override;
 
   static DXGI_FORMAT GetDXGIFormat(AVPixelFormat format, DXGI_FORMAT default_fmt = DXGI_FORMAT_UNKNOWN);
 
+  bool IsLoaded() override;
+
 private:
   bool UploadToTexture();
 
+  CD3DTexture& GetTexture();
+  void SetLoaded(bool loaded);
+  bool UseExtendedView() const;
+  bool UseExtendedBuffer() const;
+
   CD3DTexture m_texture;
+  CD3DTexture m_textureEx;
+
+  bool m_bLoadedEx = false;
+  const bool& m_isMultiView;
+  const CVideoSettings& m_videoSettings;
 };

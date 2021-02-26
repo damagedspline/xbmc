@@ -416,6 +416,7 @@ void CAdvancedSettings::Initialize()
   m_stereoscopicregex_3d = "[-. _]3d[-. _]";
   m_stereoscopicregex_sbs = "[-. _]h?sbs[-. _]";
   m_stereoscopicregex_tab = "[-. _]h?tab[-. _]";
+  m_stereoscopicregex_mvc = "[-. _]mvc[-. _]";
 
   m_videoAssFixedWorks = false;
 
@@ -573,6 +574,7 @@ void CAdvancedSettings::ParseSettingsFile(const std::string &file)
     XMLUtils::GetString(pElement, "stereoscopicregex3d", m_stereoscopicregex_3d);
     XMLUtils::GetString(pElement, "stereoscopicregexsbs", m_stereoscopicregex_sbs);
     XMLUtils::GetString(pElement, "stereoscopicregextab", m_stereoscopicregex_tab);
+    XMLUtils::GetString(pElement, "stereoscopicregexmvc", m_stereoscopicregex_mvc);
     XMLUtils::GetFloat(pElement, "subsdelayrange", m_videoSubsDelayRange, 10, 600);
     XMLUtils::GetFloat(pElement, "audiodelayrange", m_videoAudioDelayRange, 10, 600);
     XMLUtils::GetString(pElement, "defaultplayer", m_videoDefaultPlayer);
@@ -821,7 +823,7 @@ void CAdvancedSettings::ParseSettingsFile(const std::string &file)
     XMLUtils::GetInt(pElement, "curlclienttimeout", m_curlconnecttimeout, 1, 1000);
     XMLUtils::GetInt(pElement, "curllowspeedtime", m_curllowspeedtime, 1, 1000);
     XMLUtils::GetInt(pElement, "curlretries", m_curlretries, 0, 10);
-    XMLUtils::GetBoolean(pElement, "disableipv6", m_curlDisableIPV6);
+    XMLUtils::GetBoolean(pElement,"disableipv6", m_curlDisableIPV6);
     XMLUtils::GetBoolean(pElement, "disablehttp2", m_curlDisableHTTP2);
     XMLUtils::GetString(pElement, "catrustfile", m_caTrustFile);
   }

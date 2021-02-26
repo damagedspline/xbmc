@@ -41,4 +41,10 @@ if("gbm" IN_LIST CORE_PLATFORM_NAME_LC OR "wayland" IN_LIST CORE_PLATFORM_NAME_L
   list(APPEND HEADERS DVDVideoCodecDRMPRIME.h)
 endif()
 
+if(LIBMFX_FOUND)
+  list(APPEND SOURCES MFXCodec.cpp)
+  list(APPEND HEADERS MFXCodec.h)
+  add_subdirectory(mfx)
+endif()
+
 core_add_library(dvdvideocodecs)

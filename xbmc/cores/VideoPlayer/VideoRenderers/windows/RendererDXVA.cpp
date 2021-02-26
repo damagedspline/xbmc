@@ -18,6 +18,10 @@
 
 #include <ppl.h>
 
+#ifdef HAVE_LIBMFX
+#include "cores/VideoPlayer/DVDCodecs/Video/MFXCodec.h"
+#endif
+
 using namespace Microsoft::WRL;
 
 CRendererBase* CRendererDXVA::Create(CVideoSettings& videoSettings)
@@ -76,10 +80,17 @@ void CRendererDXVA::GetWeight(std::map<RenderMethod, int>& weights, const VideoP
 CRenderInfo CRendererDXVA::GetRenderInfo()
 {
   auto info = __super::GetRenderInfo();
+  
+  info.max_buffer_size = NUM_BUFFERS;
+  info.optimal_buffer_size = 4;
 
-  const int buffers = NUM_BUFFERS + m_processor->PastRefs();
-  info.optimal_buffer_size = std::min(NUM_BUFFERS, buffers);
-  info.m_deintMethods.push_back(VS_INTERLACEMETHOD_DXVA_AUTO);
+  // MV content is progressive always
+  if (!m_isMultiView)
+  {
+	const int buffers = NUM_BUFFERS + m_processor->PastRefs();
+    info.optimal_buffer_size = std::min(NUM_BUFFERS, buffers);
+    info.m_deintMethods.push_back(VS_INTERLACEMETHOD_DXVA_AUTO);
+  }
 
   return  info;
 }
@@ -88,10 +99,22 @@ bool CRendererDXVA::Configure(const VideoPicture& picture, float fps, unsigned o
 {
   const auto support_type = D3D11_VIDEO_PROCESSOR_FORMAT_SUPPORT_INPUT;
 
+  #ifdef HAVE_LIBMFX
+  CMVCPicture* mvcPic = dynamic_cast<CMVCPicture*>(picture.videoBuffer);
+  if (mvcPic)
+  {
+    m_isMultiView = true;
+  }
+#endif // HAVE_LIBMFX
+
   if (__super::Configure(picture, fps, orientation))
   {
     m_format = picture.videoBuffer->GetFormat();
-    const DXGI_FORMAT dxgi_format = CRenderBufferImpl::GetDXGIFormat(m_format, GetDXGIFormat(picture));
+    const DXGI_FORMAT dxgi_format = 
+#ifdef HAVE_LIBMFX
+		mvcPic? DXGI_FORMAT_NV12 :
+#endif // HAVE_LIBMFX
+		CRenderBufferImpl::GetDXGIFormat(m_format, GetDXGIFormat(picture));
 
     // create processor
     m_processor = std::make_unique<DXVA::CProcessorHD>();
@@ -239,13 +262,17 @@ bool CRendererDXVA::Supports(ESCALINGMETHOD method)
 
 CRenderBuffer* CRendererDXVA::CreateBuffer()
 {
-  return new CRenderBufferImpl(m_format, m_sourceWidth, m_sourceHeight);
+  return new CRenderBufferImpl(m_format, m_sourceWidth, m_sourceHeight, m_isMultiView, m_videoSettings);
 }
 
-CRendererDXVA::CRenderBufferImpl::CRenderBufferImpl(AVPixelFormat av_pix_format, unsigned width, unsigned height)
-  : CRenderBuffer(av_pix_format, width, height)
+CRendererDXVA::CRenderBufferImpl::CRenderBufferImpl(AVPixelFormat av_pix_format,
+                                                    unsigned width,
+                                                    unsigned height,
+                                                    const bool &isMultiview,
+                                                    const CVideoSettings& videoSettings)
+  : CRenderBuffer(av_pix_format, width, height), m_isMultiView(isMultiview), m_videoSettings(videoSettings)
 {
-  const auto dxgi_format = GetDXGIFormat(av_pix_format);
+  const auto dxgi_format = GetDXGIFormat(av_pix_format, m_isMultiView? DXGI_FORMAT_NV12 : DXGI_FORMAT_UNKNOWN);
   if (dxgi_format == DXGI_FORMAT_UNKNOWN)
     return;
 
@@ -253,19 +280,31 @@ CRendererDXVA::CRenderBufferImpl::CRenderBufferImpl(AVPixelFormat av_pix_format,
   m_heightTex = FFALIGN(height, 32);
 
   m_texture.Create(m_widthTex, m_heightTex, 1, D3D11_USAGE_DYNAMIC, dxgi_format);
+
+  if (m_isMultiView)
+  {
+    m_textureEx.Create(m_widthTex, m_heightTex, 1, D3D11_USAGE_DYNAMIC, dxgi_format);
+  }
 }
 
 CRendererDXVA::CRenderBufferImpl::~CRenderBufferImpl()
 {
-  CRenderBufferImpl::ReleasePicture();
+  ReleasePicture();
 }
+
+void CRendererDXVA::CRenderBufferImpl::ReleasePicture()
+{ 
+  __super::ReleasePicture();
+  m_bLoadedEx = false;
+}
+
 
 bool CRendererDXVA::CRenderBufferImpl::UploadBuffer()
 {
   if (!videoBuffer)
     return false;
 
-  if (videoBuffer->GetFormat() == AV_PIX_FMT_D3D11VA_VLD)
+  if (!m_isMultiView && videoBuffer->GetFormat() == AV_PIX_FMT_D3D11VA_VLD)
   {
     m_bLoaded = true;
     return true;
@@ -281,12 +320,22 @@ HRESULT CRendererDXVA::CRenderBufferImpl::GetResource(ID3D11Resource** ppResourc
   if (!index)
     return E_POINTER;
 
-  if (videoBuffer->GetFormat() == AV_PIX_FMT_D3D11VA_VLD)
-    return __super::GetResource(ppResource, index);
+#ifdef HAVE_LIBMFX
+  auto mvc = dynamic_cast<CMVCPicture*>(videoBuffer);
+  if (mvc)
+  {
+    return mvc->GetHWResource(UseExtendedBuffer(), ppResource, index);
+  }
+  else
+#endif
+  {
+	  if (videoBuffer->GetFormat() == AV_PIX_FMT_D3D11VA_VLD)
+		return __super::GetResource(ppResource, index);
 
-  ComPtr<ID3D11Resource> pResource = m_texture.Get();
-  *ppResource = pResource.Detach();
-  *index = 0;
+	  ComPtr<ID3D11Resource> pResource = m_texture.Get();
+	  *ppResource = pResource.Detach();
+	  *index = 0;
+  }
 
   return S_OK;
 }
@@ -309,22 +358,46 @@ DXGI_FORMAT CRendererDXVA::CRenderBufferImpl::GetDXGIFormat(AVPixelFormat format
   }
 }
 
+CD3DTexture& CRendererDXVA::CRenderBufferImpl::GetTexture()
+{
+  return UseExtendedView() ? m_textureEx : m_texture;
+}
+
 bool CRendererDXVA::CRenderBufferImpl::UploadToTexture()
 {
   D3D11_MAPPED_SUBRESOURCE rect;
-  if (!m_texture.LockRect(0, &rect, D3D11_MAP_WRITE_DISCARD))
+  
+  CD3DTexture& texture = GetTexture();
+  
+  if (!texture.LockRect(0, &rect, D3D11_MAP_WRITE_DISCARD))
     return false;
 
   // destination
   uint8_t* pData = static_cast<uint8_t*>(rect.pData);
-  uint8_t* dst[] = { pData, pData + m_texture.GetHeight() * rect.RowPitch };
+  uint8_t* dst[] = { pData, pData + texture.GetHeight() * rect.RowPitch };
   int dstStride[] = { static_cast<int>(rect.RowPitch), static_cast<int>(rect.RowPitch) };
 
   // source
   uint8_t* src[3];
   int srcStrides[3];
-  videoBuffer->GetPlanes(src);
-  videoBuffer->GetStrides(srcStrides);
+
+#ifdef HAVE_LIBMFX
+  if (UseExtendedBuffer())
+  {
+    auto mvc = dynamic_cast<CMVCPicture*>(videoBuffer);
+    if (mvc == nullptr)
+    {
+        return false;
+    }
+    mvc->GetPlanesExt(src);
+    mvc->GetStridesExt(srcStrides);
+  }
+  else
+#endif
+  {
+    videoBuffer->GetPlanes(src);
+    videoBuffer->GetStrides(srcStrides);
+  }
 
   const unsigned width = m_width;
   const unsigned height = m_height;
@@ -376,6 +449,46 @@ bool CRendererDXVA::CRenderBufferImpl::UploadToTexture()
     convert_yuv420_p01x_chrome(&src[1], &srcStrides[1], 2, 32, dst[1], dstStride[1], bpp);
   }
 
-  m_bLoaded = m_texture.UnlockRect(0);
-  return m_bLoaded;
+  SetLoaded(texture.UnlockRect(0));
+  return IsLoaded();
+}
+
+bool CRendererDXVA::CRenderBufferImpl::IsLoaded()
+{
+  return UseExtendedView() ? m_bLoadedEx : m_bLoaded;
+}
+
+void CRendererDXVA::CRenderBufferImpl::SetLoaded(bool loaded)
+{
+  if (UseExtendedView())
+    m_bLoadedEx = loaded;
+  else
+    m_bLoaded = loaded;
+}
+
+bool CRendererDXVA::CRenderBufferImpl::UseExtendedView() const
+{
+  if (!m_isMultiView)
+    return false;
+
+  CGraphicContext& context = CServiceBroker::GetWinSystem()->GetGfxContext();
+  const RENDER_STEREO_MODE stereo_mode = context.GetStereoMode();
+
+  if (stereo_mode != RENDER_STEREO_MODE_OFF && stereo_mode != RENDER_STEREO_MODE_MONO)
+  {
+    const int stereo_view = context.GetStereoView();
+    if (m_videoSettings.m_StereoInvert)
+      return stereo_view == RENDER_STEREO_VIEW_LEFT;
+
+    return stereo_view == RENDER_STEREO_VIEW_RIGHT;
+  }
+  return false;
+}
+
+bool CRendererDXVA::CRenderBufferImpl::UseExtendedBuffer() const
+{
+  CGraphicContext& context = CServiceBroker::GetWinSystem()->GetGfxContext();
+  const RENDER_STEREO_MODE stereo_mode = context.GetStereoMode();
+  
+  return UseExtendedView() && (stereo_mode == RENDER_STEREO_MODE_SPLIT_HORIZONTAL || stereo_mode == RENDER_STEREO_MODE_HARDWAREBASED);
 }

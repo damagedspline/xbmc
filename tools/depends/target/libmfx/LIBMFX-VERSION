@@ -1,0 +1,3 @@
+LIBNAME=libmfx
+BASE_URL=https://github.com/lu-zero/mfx_dispatch
+VERSION=1.34

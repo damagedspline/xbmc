@@ -232,7 +232,7 @@ CDVDOverlay* CDVDOverlayCodecFFmpeg::GetOverlay()
       }
     }
 
-    RENDER_STEREO_MODE render_stereo_mode = CServiceBroker::GetWinSystem()->GetGfxContext().GetStereoMode();
+    /*RENDER_STEREO_MODE render_stereo_mode = CServiceBroker::GetWinSystem()->GetGfxContext().GetStereoMode();
     if (render_stereo_mode != RENDER_STEREO_MODE_OFF)
     {
       if (rect.h > m_height / 2)
@@ -245,7 +245,7 @@ CDVDOverlay* CDVDOverlayCodecFFmpeg::GetOverlay()
         m_width /= 2;
         rect.w /= 2;
       }
-    }
+    }*/
 
     CDVDOverlayImage* overlay = new CDVDOverlayImage();
 

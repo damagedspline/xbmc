@@ -185,7 +185,7 @@ void CVideoPlayerVideo::OpenStream(CDVDStreamInfo &hint, CDVDVideoCodec* codec)
   }
 
   // use aspect in stream if available
-  if (hint.forced_aspect)
+  if (hint.forced_aspect && !std::isnan(hint.aspect))
     m_fForcedAspectRatio = static_cast<float>(hint.aspect);
   else
     m_fForcedAspectRatio = 0.0f;
@@ -379,8 +379,7 @@ void CVideoPlayerVideo::Process()
             break;
         }
 
-        CLog::Log(LOGDEBUG, "CVideoPlayerVideo - Stillframe detected, switching to forced %f fps",
-                  m_fFrameRate);
+        CLog::Log(LOGDEBUG, "CVideoPlayerVideo - Stillframe detected, switching to forced %f fps", m_fFrameRate);
         m_stalled = true;
         pts += frametime * 4;
       }

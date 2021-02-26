@@ -369,6 +369,26 @@ void DX::DeviceResources::CreateDeviceResources()
     }
   }
 
+  ID3D10Multithread       *pD10Multithread = nullptr;
+  hr = context->QueryInterface(&pD10Multithread);
+  if (FAILED(hr))
+  {
+      CLog::LogF(LOGERROR, "unable to create multithread object. 3D Rendering in not possible.");
+  }
+  else
+  {
+      hr = pD10Multithread->SetMultithreadProtected(true);
+      if (FAILED(hr))
+      {
+          CLog::LogF(LOGERROR, "unable to enable multithread mode for DX11. 3D Rendering in not possible.");
+      }
+      if (pD10Multithread != nullptr)
+      {
+          pD10Multithread->Release();
+          pD10Multithread = nullptr;
+      }
+  }
+
   // Store pointers to the Direct3D 11.1 API device and immediate context.
   hr = device.As(&m_d3dDevice); CHECK_ERR();
 
