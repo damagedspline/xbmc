@@ -135,6 +135,8 @@ void CStereoscopicsManager::SetStereoMode(const RENDER_STEREO_MODE &mode)
   RENDER_STEREO_MODE currentMode = GetStereoMode();
   RENDER_STEREO_MODE applyMode = mode;
 
+  CServiceBroker::GetRenderSystem()->Enable3DDisplay(mode == RENDER_STEREO_MODE_AUTO || mode == RENDER_STEREO_MODE_HARDWAREBASED);
+
   // resolve automatic mode before applying
   if (mode == RENDER_STEREO_MODE_AUTO)
     applyMode = GetStereoModeOfPlayingVideo();

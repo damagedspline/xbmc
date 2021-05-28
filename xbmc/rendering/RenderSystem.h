@@ -59,6 +59,8 @@ public:
     m_stereoView = view;
   }
 
+  virtual void Enable3DDisplay(bool is3D) const {}
+
   /**
    * Project (x,y,z) 3d scene coordinates to (x,y) 2d screen coordinates
    */

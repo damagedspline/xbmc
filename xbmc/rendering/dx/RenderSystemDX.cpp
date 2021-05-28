@@ -640,6 +640,11 @@ bool CRenderSystemDX::SupportsStereo(RENDER_STEREO_MODE mode) const
   }
 }
 
+void CRenderSystemDX::Enable3DDisplay(bool is3D) const
+{
+    m_deviceResources->Enable3DDisplay(is3D);
+}
+
 void CRenderSystemDX::FlushGPU() const
 {
   if (!m_bRenderCreated)

@@ -361,8 +361,11 @@ CMFXCodec::~CMFXCodec()
 
 bool CMFXCodec::Init()
 {
+    auto mfxLevel = (uint16_t) CServiceBroker::GetSettingsComponent()->GetSettings()->GetInt(
+        CSettings::SETTING_VIDEOPLAYER_MFXLEVEL);
+
   mfxIMPL impl = MFX_IMPL_AUTO_ANY | MFX_IMPL_VIA_D3D11;
-  mfxVersion version = {{27, 1}};
+  mfxVersion version = {{mfxLevel, 1}};
 
   mfxStatus sts = MFXInit(impl, &version, &m_mfxSession);
   if (sts != MFX_ERR_NONE)

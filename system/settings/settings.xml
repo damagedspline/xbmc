@@ -173,10 +173,21 @@
           <default>true</default>
           <control type="toggle" />
         </setting>
-        <setting id="videoplayer.supportmvc" type="boolean" label="38027" help="38028">
+        <setting id="videoplayer.supportmvc" type="boolean" label="60000" help="60001">
           <level>2</level>
           <default>true</default>
           <control type="toggle" />
+          <requirement>HAS_MVC</requirement>
+        </setting>
+        <setting id="videoplayer.mfxlevel" type="integer" label="60002" help="60003">
+          <level>2</level>
+          <default>20</default>
+          <constraints>
+            <minimum>0</minimum>
+            <step>1</step>
+            <maximum>35</maximum>
+          </constraints>
+          <control type="spinner" format="integer" delayed="true"/>
           <requirement>HAS_MVC</requirement>
         </setting>
       </group>

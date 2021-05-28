@@ -64,6 +64,7 @@ namespace DX
     ID3D11DepthStencilView* GetDSV() const { return m_d3dDepthStencilView.Get(); }
     D3D_FEATURE_LEVEL GetDeviceFeatureLevel() const { return m_d3dFeatureLevel; }
     CD3DTexture& GetBackBuffer() { return m_backBufferTex; }
+    IDXGIDisplayControl* GetDisplayControl() const { return m_displayControl.Get(); }
 
     void GetOutput(IDXGIOutput** ppOutput) const;
     void GetAdapterDesc(DXGI_ADAPTER_DESC *desc) const;
@@ -97,6 +98,7 @@ namespace DX
     bool IsStereoAvailable() const;
     bool IsStereoEnabled() const { return m_stereoEnabled; }
     void SetStereoIdx(byte idx) { m_backBufferTex.SetViewIdx(idx); }
+    void Enable3DDisplay(bool is3D);
 
     void SetMonitor(HMONITOR monitor);
     HMONITOR GetMonitor() const;
@@ -141,6 +143,7 @@ namespace DX
     Microsoft::WRL::ComPtr<ID3D11DeviceContext1> m_d3dContext;
     Microsoft::WRL::ComPtr<ID3D11DeviceContext1> m_deferrContext;
     Microsoft::WRL::ComPtr<IDXGISwapChain1> m_swapChain;
+    Microsoft::WRL::ComPtr<IDXGIDisplayControl> m_displayControl;
 #ifdef _DEBUG
     Microsoft::WRL::ComPtr<ID3D11Debug> m_d3dDebug;
 #endif

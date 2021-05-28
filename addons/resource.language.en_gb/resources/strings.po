@@ -22485,3 +22485,28 @@ msgstr ""
 msgctxt "#39153"
 msgid "Windowing system:"
 msgstr ""
+
+#. Description
+msgctxt "#39152"
+msgid "Integer scaling (IS) is a Nearest-Neighbor(NN) upscaling technique using Display Engine"
+msgstr ""
+
+#. MVC enable
+msgctxt "#60000"
+msgid "Support 3D MVC"
+msgstr ""
+
+#. MVC enable help
+msgctxt "#60001"
+msgid "3D MVC is full frame stereoscopic 3D usually available on commercial 3D Blu-ray discs"
+msgstr ""
+
+#. MVC decoder HW support level
+msgctxt "#60002"
+msgid "3D MVC decoder HW support level"
+msgstr ""
+
+#. MVC decoder HW support level help
+msgctxt "#60003"
+msgid "Some GPUs have limited HW decoding support. In case of issues with 3D MVC decoding, try choosing a lower value. It is recommended to select the highest level that is verified to be working."
+msgstr ""

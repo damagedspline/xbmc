@@ -102,6 +102,7 @@ void DX::DeviceResources::Release()
     m_swapChain->SetFullscreenState(false, nullptr);
 
   m_swapChain = nullptr;
+  m_displayControl = nullptr;
   m_adapter = nullptr;
   m_dxgiFactory = nullptr;
   m_output = nullptr;
@@ -202,7 +203,7 @@ bool DX::DeviceResources::SetFullScreen(bool fullscreen, RESOLUTION_INFO& res)
   CLog::LogF(LOGDEBUG, "switching from %s(%.0f x %.0f) to %s(%d x %d)",
              bFullScreen ? "fullscreen " : "", m_outputSize.Width, m_outputSize.Height,
              fullscreen  ? "fullscreen " : "", res.iWidth, res.iHeight);
-
+  
   bool recreate = m_stereoEnabled != (CServiceBroker::GetWinSystem()->GetGfxContext().GetStereoMode() == RENDER_STEREO_MODE_HARDWAREBASED);
   if (!!bFullScreen && !fullscreen)
   {
@@ -427,6 +428,11 @@ void DX::DeviceResources::CreateDeviceResources()
     hr = m_d3dDevice.As(&dxgiDevice); CHECK_ERR();
     hr = dxgiDevice->GetAdapter(&adapter); CHECK_ERR();
     hr = adapter.As(&m_adapter); CHECK_ERR();
+  }
+
+  if (!m_displayControl)
+  {
+      hr = m_dxgiFactory->QueryInterface(__uuidof(IDXGIDisplayControl), (void **)&m_displayControl);
   }
 
   DXGI_ADAPTER_DESC aDesc;
@@ -1064,6 +1070,17 @@ bool DX::DeviceResources::IsStereoAvailable() const
     return m_dxgiFactory->IsWindowedStereoEnabled();
 
   return false;
+}
+
+void DX::DeviceResources::Enable3DDisplay(bool is3D)
+{
+    if (m_displayControl)
+    {
+        if ((m_displayControl->IsStereoEnabled() == TRUE) != is3D)
+        {
+            m_displayControl->SetStereoEnabled(is3D);
+        }
+    }
 }
 
 void DX::DeviceResources::CheckNV12SharedTexturesSupport()

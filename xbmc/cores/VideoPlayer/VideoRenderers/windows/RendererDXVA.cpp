@@ -101,10 +101,15 @@ bool CRendererDXVA::Configure(const VideoPicture& picture, float fps, unsigned o
 
   #ifdef HAVE_LIBMFX
   CMVCPicture* mvcPic = dynamic_cast<CMVCPicture*>(picture.videoBuffer);
-  if (mvcPic)
+  m_isMultiView = (mvcPic != nullptr);
+
+  auto stereoMode = CServiceBroker::GetWinSystem()->GetGfxContext().GetStereoMode();
+  if (!m_isMultiView)
   {
-    m_isMultiView = true;
+      //make sure #D display is not on when not needed
+      CServiceBroker::GetRenderSystem()->Enable3DDisplay(false);
   }
+
 #endif // HAVE_LIBMFX
 
   if (__super::Configure(picture, fps, orientation))
